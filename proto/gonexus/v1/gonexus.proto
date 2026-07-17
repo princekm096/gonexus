@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package gonexus.v1;
+
+option go_package = "github.com/yourorg/gonexus/gen/gonexus/v1;gonexusv1";
+
+// GoNexusService exposes the code knowledge graph over gRPC / Connect.
+// Served by connect-go, so the same endpoint answers gRPC, gRPC-Web, and the
+// Connect protocol (browser fetch) with no proxy.
+service GoNexusService {
+  // Index parses a repo into the graph and persists it.
+  rpc Index(IndexRequest) returns (IndexResponse) {}
+  // Query is hybrid name/symbol search.
+  rpc Query(QueryRequest) returns (QueryResponse) {}
+  // Context returns a symbol with its incoming/outgoing edges (360° view).
+  rpc Context(ContextRequest) returns (ContextResponse) {}
+  // Impact returns the transitive callers (blast radius) of a symbol.
+  rpc Impact(ImpactRequest) returns (ImpactResponse) {}
+  // Trace returns the shortest call path between two symbols.
+  rpc Trace(TraceRequest) returns (TraceResponse) {}
+  // Subgraph returns nodes+edges around a symbol for visualization.
+  rpc Subgraph(SubgraphRequest) returns (SubgraphResponse) {}
+  // Repos lists the registered (indexed) repositories.
+  rpc Repos(ReposRequest) returns (ReposResponse) {}
+  // EntryPoints lists execution-flow roots (main, handlers, commands).
+  rpc EntryPoints(EntryPointsRequest) returns (EntryPointsResponse) {}
+  // Process returns the call-tree flow rooted at a symbol.
+  rpc Process(ProcessRequest) returns (ProcessResponse) {}
+  // Clusters returns emergent modules (community detection).
+  rpc Clusters(ClustersRequest) returns (ClustersResponse) {}
+  // DetectChanges maps a git diff to changed symbols and their blast radius.
+  rpc DetectChanges(DetectChangesRequest) returns (DetectChangesResponse) {}
+  // Rename plans (and optionally applies) a multi-file symbol rename.
+  rpc Rename(RenameRequest) returns (RenameResponse) {}
+  // Wiki generates architecture documentation from the graph.
+  rpc Wiki(WikiRequest) returns (WikiResponse) {}
+}
+
+// repo names which registered repository a query targets. Empty selects the
+// sole repo when exactly one is registered.
+
+message Node {
+  string id = 1;
+  string kind = 2;
+  string name = 3;
+  string package = 4;
+  string file = 5;
+  int32 line = 6;
+  string signature = 7;
+  string doc = 8;
+}
+
+message Edge {
+  string from = 1;
+  string to = 2;
+  string kind = 3;
+}
+
+message IndexRequest {
+  string path = 1;
+  string name = 2; // optional; defaults to the directory base name
+}
+message IndexResponse {
+  int32 nodes = 1;
+  int32 edges = 2;
+  string name = 3;
+}
+
+message QueryRequest {
+  string q = 1;
+  int32 limit = 2;
+  string repo = 3;
+}
+message QueryResponse { repeated Node results = 1; }
+
+message ContextRequest {
+  string id = 1;
+  string repo = 2;
+}
+message ContextResponse {
+  Node node = 1;
+  repeated Edge incoming = 2;
+  repeated Edge outgoing = 3;
+}
+
+message ImpactRequest {
+  string id = 1;
+  string repo = 2;
+}
+message ImpactResponse { repeated string ids = 1; }
+
+message TraceRequest {
+  string from = 1;
+  string to = 2;
+  string repo = 3;
+}
+message TraceResponse { repeated string path = 1; }
+
+message SubgraphRequest {
+  string id = 1;
+  int32 depth = 2;
+  string repo = 3;
+}
+message SubgraphResponse {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+}
+
+message ReposRequest {}
+message Repo {
+  string name = 1;
+  string path = 2;
+  int32 nodes = 3;
+  bool stale = 4; // source changed since last index
+}
+message ReposResponse { repeated Repo repos = 1; }
+
+message EntryPointsRequest { string repo = 1; }
+message EntryPoint {
+  Node node = 1;
+  int32 size = 2; // number of nodes in this entry point's flow
+}
+message EntryPointsResponse { repeated EntryPoint entries = 1; }
+
+message ProcessRequest {
+  string id = 1;
+  string repo = 2;
+}
+message ProcessResponse {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+}
+
+message ClustersRequest { string repo = 1; }
+message Cluster {
+  string id = 1;
+  string name = 2;
+  repeated string members = 3;
+}
+message ClustersResponse { repeated Cluster clusters = 1; }
+
+message DetectChangesRequest {
+  string repo = 1;
+  string base = 2; // git ref to diff against; empty = working tree vs HEAD
+}
+message DetectChangesResponse {
+  repeated Node changed = 1;   // symbols the diff touched
+  repeated string impacted = 2; // transitive callers (blast radius)
+}
+
+message RenameRequest {
+  string repo = 1;
+  string id = 2;       // symbol id to rename
+  string new_name = 3;
+  bool apply = 4;      // false = plan only; true = write the edits
+}
+message RenameEdit {
+  string file = 1;
+  repeated int32 lines = 2;
+}
+message RenameResponse {
+  string old_name = 1;
+  string new_name = 2;
+  repeated RenameEdit edits = 3;
+  int32 occurrences = 4;
+  double confidence = 5; // 1.0 when the name is unique in the repo
+  bool applied = 6;
+}
+
+message WikiRequest { string repo = 1; }
+message WikiResponse { string markdown = 1; }

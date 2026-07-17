@@ -1,0 +1,11 @@
+{
+  "name": "gonexus-ts-extractor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Emits GoNexus {nodes,edges} JSON for TS/JS/Vue, using the TypeScript compiler + @vue/compiler-sfc.",
+  "dependencies": {
+    "typescript": "^5.6.0",
+    "@vue/compiler-sfc": "^3.5.0"
+  }
+}
