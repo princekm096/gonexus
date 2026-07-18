@@ -38,6 +38,7 @@ const (
 	EdgeImports    EdgeKind = "imports"    // package -> package
 	EdgeImplements EdgeKind = "implements" // type -> interface
 	EdgeReferences EdgeKind = "references" // symbol -> type used
+	EdgeConstructs EdgeKind = "constructs" // constructor func -> type it builds
 )
 
 type Node struct {
@@ -60,9 +61,17 @@ type Edge struct {
 	Kind EdgeKind `json:"kind"`
 }
 
+// Route is a detected HTTP endpoint → handler mapping.
+type Route struct {
+	Method  string `json:"method"` // GET/POST/... or ANY
+	Path    string `json:"path"`
+	Handler string `json:"handler"` // node id of the handler func, if resolved
+}
+
 type Graph struct {
-	Nodes map[string]*Node `json:"nodes"`
-	Edges []Edge           `json:"edges"`
+	Nodes  map[string]*Node `json:"nodes"`
+	Edges  []Edge           `json:"edges"`
+	Routes []Route          `json:"routes,omitempty"`
 
 	// adjacency, rebuilt on load; not serialized.
 	out map[string][]Edge `json:"-"`
@@ -75,6 +84,10 @@ type Graph struct {
 	// Detected communities, built lazily on first call.
 	clusters    []Community
 	clusterOnce sync.Once
+
+	// node -> entry-point name (process), built lazily for grouped search.
+	proc     map[string]string
+	procOnce sync.Once
 }
 
 func New() *Graph {
@@ -99,8 +112,11 @@ func (g *Graph) AddEdge(e Edge) {
 	g.in[e.To] = append(g.in[e.To], e)
 }
 
-// Merge folds other's nodes and edges into g (used to combine per-language
-// extractors — e.g. a Go backend and a Vue frontend in one repo).
+// AddRoute records an HTTP endpoint → handler mapping.
+func (g *Graph) AddRoute(r Route) { g.Routes = append(g.Routes, r) }
+
+// Merge folds other's nodes, edges, and routes into g (used to combine
+// per-language extractors — e.g. a Go backend and a Vue frontend in one repo).
 func (g *Graph) Merge(other *Graph) {
 	for _, n := range other.Nodes {
 		g.AddNode(n)
@@ -108,6 +124,7 @@ func (g *Graph) Merge(other *Graph) {
 	for _, e := range other.Edges {
 		g.AddEdge(e)
 	}
+	g.Routes = append(g.Routes, other.Routes...)
 }
 
 // index rebuilds adjacency maps (after JSON load).

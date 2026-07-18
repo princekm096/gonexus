@@ -61,35 +61,7 @@ func (g *Graph) detectCommunities() []Community {
 	}
 	sort.Strings(nodes) // deterministic sweep order
 
-	label := make(map[string]string, len(nodes))
-	for _, id := range nodes {
-		label[id] = id
-	}
-
-	// Asynchronous label propagation: each node adopts the highest-weighted
-	// neighbor label; ties break to the smallest label for reproducibility.
-	for iter := 0; iter < clusterMaxIters; iter++ {
-		changed := false
-		for _, u := range nodes {
-			tally := map[string]int{}
-			for v, w := range adj[u] {
-				tally[label[v]] += w
-			}
-			best, bestW := label[u], -1
-			for lbl, w := range tally {
-				if w > bestW || (w == bestW && lbl < best) {
-					best, bestW = lbl, w
-				}
-			}
-			if best != label[u] {
-				label[u] = best
-				changed = true
-			}
-		}
-		if !changed {
-			break
-		}
-	}
+	label := louvainMove(nodes, adj)
 
 	// Group by final label.
 	groups := map[string][]string{}
@@ -112,6 +84,62 @@ func (g *Graph) detectCommunities() []Community {
 		return out[i].ID < out[j].ID
 	})
 	return out
+}
+
+// louvainMove runs one level of Louvain modularity optimization: each node
+// greedily moves to the neighbor community that maximizes modularity gain,
+// iterating to a fixpoint. Deterministic (fixed order, smallest-id tie-break).
+// ponytail: single level (no community aggregation/recursion) — already fixes
+// LPA's giant-community drift; full multi-level Louvain is the upgrade path.
+func louvainMove(nodes []string, adj map[string]map[string]int) map[string]string {
+	deg := map[string]float64{}
+	var m2 float64 // sum of weighted degrees = 2m
+	for u, nbrs := range adj {
+		for _, w := range nbrs {
+			deg[u] += float64(w)
+			m2 += float64(w)
+		}
+	}
+	com := make(map[string]string, len(nodes))
+	comTot := map[string]float64{} // community -> sum of member degrees
+	for _, u := range nodes {
+		com[u] = u
+		comTot[u] += deg[u]
+	}
+	if m2 == 0 {
+		return com
+	}
+
+	for iter := 0; iter < clusterMaxIters; iter++ {
+		improved := false
+		for _, u := range nodes {
+			cu := com[u]
+			comTot[cu] -= deg[u]
+			com[u] = "" // temporarily unassigned
+
+			wTo := map[string]float64{}
+			for v, w := range adj[u] {
+				if c := com[v]; c != "" {
+					wTo[c] += float64(w)
+				}
+			}
+			best, bestGain := cu, wTo[cu]-deg[u]*comTot[cu]/m2
+			for c, win := range wTo {
+				if gain := win - deg[u]*comTot[c]/m2; gain > bestGain || (gain == bestGain && c < best) {
+					best, bestGain = c, gain
+				}
+			}
+			com[u] = best
+			comTot[best] += deg[u]
+			if best != cu {
+				improved = true
+			}
+		}
+		if !improved {
+			break
+		}
+	}
+	return com
 }
 
 // communityName is the most common package among members (base segment); ties

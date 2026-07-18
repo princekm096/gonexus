@@ -86,6 +86,64 @@ func (g *Graph) ProcessSize(entryID string) int {
 	return len(g.reachableNodes(entryID))
 }
 
+// GradedImpact is a transitive caller with its distance and a confidence that
+// scales inversely with distance (direct callers are the most certain).
+type GradedImpact struct {
+	ID         string  `json:"id"`
+	Depth      int     `json:"depth"`
+	Confidence float64 `json:"confidence"`
+}
+
+// ImpactGraded is Impact with per-caller depth grouping and confidence
+// (1/depth: direct callers 1.0, two hops 0.5, ...). Sorted by depth then id.
+func (g *Graph) ImpactGraded(id string) []GradedImpact {
+	depth := map[string]int{id: 0}
+	queue := []string{id}
+	var out []GradedImpact
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		d := depth[cur]
+		for _, e := range g.in[cur] {
+			if e.Kind != EdgeCalls {
+				continue
+			}
+			if _, ok := depth[e.From]; !ok {
+				depth[e.From] = d + 1
+				out = append(out, GradedImpact{ID: e.From, Depth: d + 1, Confidence: 1.0 / float64(d+1)})
+				queue = append(queue, e.From)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Depth != out[j].Depth {
+			return out[i].Depth < out[j].Depth
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+// processOf maps each node to the name of an entry point whose flow reaches it
+// (the first by sorted entry id). Built once, for process-grouped search.
+func (g *Graph) processOf() map[string]string {
+	g.procOnce.Do(func() {
+		m := map[string]string{}
+		for _, ep := range g.EntryPoints() {
+			for id := range g.reachableNodes(ep.ID) {
+				if _, taken := m[id]; !taken {
+					m[id] = ep.Name
+				}
+			}
+		}
+		g.proc = m
+	})
+	return g.proc
+}
+
+// ProcessOf returns an entry point whose flow reaches id, or "" if none.
+func (g *Graph) ProcessOf(id string) string { return g.processOf()[id] }
+
 // ProcessesOf returns the entry points whose flow reaches id — the processes a
 // symbol participates in (e.g. "is this function on a request path?").
 func (g *Graph) ProcessesOf(id string) []*Node {

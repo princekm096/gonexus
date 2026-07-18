@@ -1,0 +1,6 @@
+.git
+.gonexus
+web/node_modules
+web/dist
+tools/ts-extractor/node_modules
+gonexus

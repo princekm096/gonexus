@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yourorg/gonexus/internal/analysis"
 	"github.com/yourorg/gonexus/internal/embed"
 	"github.com/yourorg/gonexus/internal/graph"
 	"github.com/yourorg/gonexus/internal/registry"
@@ -43,7 +44,23 @@ func IndexAndRegister(path, name string) (string, int, int, error) {
 	if err := registry.Add(name, abs); err != nil {
 		return "", 0, 0, err
 	}
+	buildPDG(abs, cacheDir)
 	return name, len(g.Nodes), len(g.Edges), nil
+}
+
+// buildPDG runs the heavy SSA analysis (CFG/data-dependence + taint) and
+// persists it — only when GONEXUS_PDG=1 and the repo has Go. Failures are
+// logged, never fatal.
+func buildPDG(dir, cacheDir string) {
+	if os.Getenv("GONEXUS_PDG") != "1" || !hasGo(dir) {
+		return
+	}
+	res, err := analysis.BuildGoPDG(dir)
+	if err != nil {
+		log.Printf("gonexus: pdg skipped: %v", err)
+		return
+	}
+	_ = res.Save(filepath.Join(cacheDir, "pdg.json"))
 }
 
 // embedNodes fills each node's Vector when an embedder is configured; a no-op

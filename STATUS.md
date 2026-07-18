@@ -2,6 +2,31 @@
 
 Live checklist of what's built vs left. Roadmap detail in [README](README.md).
 
+## Parity push (excl. language support)
+- [x] **P5 — MCP guards**: read-only mode (`GONEXUS_MCP_READ_ONLY`), repo
+      allowlist (`GONEXUS_MCP_ALLOWED_REPOS`), response budget
+      (`GONEXUS_MCP_DEFAULT_MAX_TOKENS`). (`internal/mcp/guards.go`)
+- [x] **P6 — inspection/query tools**: `tool_map`, `check` (id/dangling
+      validation), `cypher` (single-hop pattern), `route_map` (HTTP routes),
+      `api_impact` (route handler blast radius). gRPC + MCP.
+      _`shape_check` (cross-language API response-shape validation) deferred._
+- [x] P7 — repo groups: registry (`~/.gonexus/groups.json`), contract
+      extraction (exported symbols + routes), cross-repo linking + impact.
+      MCP `group_list`/`group_sync`, CLI `group create/add/remove/list/sync/impact`.
+      (`internal/groups`)
+- [x] P8 — agent surface: MCP prompts (`detect_impact`, `generate_map`), skills
+      generation (`gonexus skills` → 6 standard + per-module), editor hook
+      snippet (`gonexus hooks`). (`internal/skills`)
+- [x] P9 — depth: Louvain (one-level modularity) replaces LPA; impact
+      depth-grouping + confidence (`ImpactGraded`); process-grouped search
+      (`process` on results); Porter-lite stemmer in the tokenizer.
+- [x] P10 — web extras: bridge auto-detect banner + agent chat panel
+      (`Ask` = RAG over the graph; LLM-optional). WebGL/WASM client-side deferred.
+- [x] P11 — deploy/CLI: Dockerfile + `.github/workflows/ci.yml`;
+      `setup`/`clean`/`doctor`/`uninstall` CLI.
+- Excluded (impractical here): client-side WASM rebuild, ReAct browser agent,
+      Cosign/SBOM/K8s signing, hosted SaaS, OCaml; `shape_check` deferred.
+
 ## Phase 1 — spine ✅
 - [x] Go indexer via `go/packages` + `go/types` (`internal/index`)
 - [x] In-memory graph + JSON persist (`internal/graph`)
@@ -32,6 +57,20 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
       mtime-reloads so a CLI reindex shows up live. Requests carry `repo`
       (empty = sole repo). CLI `index <path> [name]` / `list`; `Repos` RPC +
       `repos` MCP tool; Vue repo selector. (`internal/registry`)
+
+## Deep static analysis (Go)
+- [x] Constructor inference — `NewX(...) (*X|X)` → `constructs` edge (always on,
+      `internal/index/index.go`).
+- [x] Framework/library detection — from import edges (`graph.Frameworks`);
+      surfaced in the wiki.
+- [x] PDG / control-flow graphs via Go SSA — per-function CFG (blocks + edges)
+      + SSA def-use data dependence. Opt-in `GONEXUS_PDG=1`; gRPC `PdgQuery`,
+      MCP `pdg_query`. (`internal/analysis`)
+- [x] Taint analysis (source→sink) — intra-procedural value-flow over SSA
+      def-use, default rule set (env/http input → exec/SQL/file ops). gRPC
+      `Explain`, MCP `explain`.
+      _Go-only (SSA); intra-procedural, no memory/alias; block-level control
+      dependence. Upgrade path: pointer analysis + IFDS._
 
 ## Phase 3 — search & intelligence
 - [x] Hybrid search: BM25 (always, pure Go — `internal/graph/search.go`) fused

@@ -3,10 +3,14 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
 
 	"connectrpc.com/connect"
 	v1 "github.com/yourorg/gonexus/gen/gonexus/v1"
 	"github.com/yourorg/gonexus/gen/gonexus/v1/gonexusv1connect"
+	"github.com/yourorg/gonexus/internal/analysis"
 	"github.com/yourorg/gonexus/internal/changes"
 	"github.com/yourorg/gonexus/internal/embed"
 	"github.com/yourorg/gonexus/internal/graph"
@@ -95,7 +99,11 @@ func (s *Server) Impact(ctx context.Context, req *connect.Request[v1.ImpactReque
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&v1.ImpactResponse{Ids: g.Impact(req.Msg.Id)}), nil
+	hits := make([]*v1.ImpactHit, 0)
+	for _, h := range g.ImpactGraded(req.Msg.Id) {
+		hits = append(hits, &v1.ImpactHit{Id: h.ID, Depth: int32(h.Depth), Confidence: h.Confidence})
+	}
+	return connect.NewResponse(&v1.ImpactResponse{Ids: g.Impact(req.Msg.Id), Hits: hits}), nil
 }
 
 func (s *Server) Trace(ctx context.Context, req *connect.Request[v1.TraceRequest]) (*connect.Response[v1.TraceResponse], error) {
@@ -197,6 +205,133 @@ func (s *Server) Wiki(ctx context.Context, req *connect.Request[v1.WikiRequest])
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&v1.WikiResponse{Markdown: md}), nil
+}
+
+func (s *Server) pdgFor(repo string) (*analysis.Result, error) {
+	r, err := s.store.Repo(repo)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	res, err := analysis.Load(filepath.Join(r.Path, ".gonexus", "pdg.json"))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return res, nil
+}
+
+func (s *Server) Explain(ctx context.Context, req *connect.Request[v1.ExplainRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	res, err := s.pdgFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*v1.TaintFinding, 0)
+	for _, t := range res.TaintForFunc(req.Msg.Id) {
+		out = append(out, &v1.TaintFinding{Func: t.Func, Source: t.Source, Sink: t.Sink, Line: int32(t.Line)})
+	}
+	return connect.NewResponse(&v1.ExplainResponse{Findings: out}), nil
+}
+
+func (s *Server) PdgQuery(ctx context.Context, req *connect.Request[v1.PdgQueryRequest]) (*connect.Response[v1.PdgQueryResponse], error) {
+	res, err := s.pdgFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	fp := res.FindByFunc(req.Msg.Id)
+	if fp == nil {
+		return nil, connect.NewError(connect.CodeNotFound, nil)
+	}
+	edges := make([]*v1.ControlEdge, 0, len(fp.CtrlEdges))
+	for _, e := range fp.CtrlEdges {
+		edges = append(edges, &v1.ControlEdge{From: int32(e[0]), To: int32(e[1])})
+	}
+	return connect.NewResponse(&v1.PdgQueryResponse{
+		Id: fp.ID, Blocks: int32(fp.Blocks), CtrlEdges: edges,
+		DataEdges: int32(fp.DataEdges), Params: fp.Params,
+	}), nil
+}
+
+func (s *Server) Check(ctx context.Context, req *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	missing, dangling := g.Check(req.Msg.Ids)
+	return connect.NewResponse(&v1.CheckResponse{Missing: missing, Dangling: toEdges(dangling)}), nil
+}
+
+func (s *Server) Cypher(ctx context.Context, req *connect.Request[v1.CypherRequest]) (*connect.Response[v1.CypherResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := g.Cypher(req.Msg.Pattern, int(req.Msg.Limit))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&v1.CypherResponse{Edges: toEdges(edges)}), nil
+}
+
+func (s *Server) RouteMap(ctx context.Context, req *connect.Request[v1.RouteMapRequest]) (*connect.Response[v1.RouteMapResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&v1.RouteMapResponse{Routes: toRoutes(g.Routes)}), nil
+}
+
+func (s *Server) ApiImpact(ctx context.Context, req *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*v1.RouteImpact, 0)
+	for _, r := range g.Routes {
+		if req.Msg.Path != "" && r.Path != req.Msg.Path {
+			continue
+		}
+		var impacted []string
+		if r.Handler != "" {
+			impacted = g.Impact(r.Handler)
+		}
+		out = append(out, &v1.RouteImpact{
+			Route:    &v1.Route{Method: r.Method, Path: r.Path, Handler: r.Handler},
+			Impacted: impacted,
+		})
+	}
+	return connect.NewResponse(&v1.ApiImpactResponse{Routes: out}), nil
+}
+
+func toRoutes(rs []graph.Route) []*v1.Route {
+	out := make([]*v1.Route, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, &v1.Route{Method: r.Method, Path: r.Path, Handler: r.Handler})
+	}
+	return out
+}
+
+func (s *Server) Ask(ctx context.Context, req *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	nodes := g.Search(req.Msg.Question, 8)
+	var ctxText strings.Builder
+	for _, n := range nodes {
+		fmt.Fprintf(&ctxText, "- %s (%s) %s\n  %s\n", n.Name, n.Kind, n.Signature, n.Doc)
+	}
+	answer := ""
+	if s.llm != nil {
+		sys := "You are a code assistant. Answer the question using only the provided code context. " +
+			"Cite symbol names. If the context is insufficient, say so."
+		a, err := s.llm.Complete(ctx, sys, "Question: "+req.Msg.Question+"\n\nRelevant code:\n"+ctxText.String())
+		if err == nil {
+			answer = a
+		}
+	}
+	if answer == "" {
+		answer = "No LLM configured (set GONEXUS_LLM_URL). Most relevant symbols:\n" + ctxText.String()
+	}
+	return connect.NewResponse(&v1.AskResponse{Answer: answer, Sources: toNodes(nodes)}), nil
 }
 
 func (s *Server) Clusters(ctx context.Context, req *connect.Request[v1.ClustersRequest]) (*connect.Response[v1.ClustersResponse], error) {

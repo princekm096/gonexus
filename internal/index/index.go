@@ -121,6 +121,15 @@ func recvName(t types.Type) string {
 	return types.TypeString(t, nil)
 }
 
+// namedType unwraps a pointer and returns the underlying *types.Named, or nil.
+func namedType(t types.Type) *types.Named {
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	named, _ := t.(*types.Named)
+	return named
+}
+
 func indexPkg(g *graph.Graph, pkg *packages.Package) {
 	if pkg.Types == nil || pkg.TypesInfo == nil {
 		return // skip packages that failed to type-check
@@ -165,6 +174,17 @@ func indexFunc(g *graph.Graph, pkg *packages.Package, fset *token.FileSet, d *as
 	})
 	g.AddEdge(graph.Edge{From: pkg.PkgPath, To: id, Kind: graph.EdgeDefines})
 
+	// constructor inference: `NewX(...) (*X|X)` returning a package-local named
+	// type -> a `constructs` edge from the func to the type.
+	if d.Recv == nil && strings.HasPrefix(d.Name.Name, "New") {
+		if sig, ok := obj.Type().(*types.Signature); ok && sig.Results().Len() >= 1 {
+			if named := namedType(sig.Results().At(0).Type()); named != nil &&
+				named.Obj().Pkg() == pkg.Types {
+				g.AddEdge(graph.Edge{From: id, To: objID(named.Obj()), Kind: graph.EdgeConstructs})
+			}
+		}
+	}
+
 	// call edges: walk the body, resolve each callee via TypesInfo.Uses.
 	if d.Body == nil {
 		return
@@ -187,8 +207,44 @@ func indexFunc(g *graph.Graph, pkg *packages.Package, fset *token.FileSet, d *as
 		if fn, ok := callee.(*types.Func); ok {
 			g.AddEdge(graph.Edge{From: id, To: objID(fn), Kind: graph.EdgeCalls})
 		}
+		detectRoute(g, pkg, call, ident.Name)
 		return true
 	})
+}
+
+// routeMethods maps router method names to an HTTP method (covers net/http,
+// gin, echo, chi, gorilla). Handle/HandleFunc register any method.
+var routeMethods = map[string]string{
+	"HandleFunc": "ANY", "Handle": "ANY",
+	"GET": "GET", "POST": "POST", "PUT": "PUT", "DELETE": "DELETE",
+	"PATCH": "PATCH", "HEAD": "HEAD", "OPTIONS": "OPTIONS",
+}
+
+// detectRoute recognizes `router.<Method>("/path", handler)` calls and records
+// a Route. Heuristic across common Go HTTP routers.
+func detectRoute(g *graph.Graph, pkg *packages.Package, call *ast.CallExpr, sel string) {
+	method, ok := routeMethods[sel]
+	if !ok || len(call.Args) < 2 {
+		return
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return
+	}
+	path := strings.Trim(lit.Value, "`\"")
+	if !strings.HasPrefix(path, "/") {
+		return // first arg isn't a URL path (e.g. a pattern name)
+	}
+	r := graph.Route{Method: method, Path: path}
+	// resolve the handler argument to a func node id, if it's a named func.
+	if h, ok := call.Args[len(call.Args)-1].(*ast.Ident); ok {
+		if obj := pkg.TypesInfo.Uses[h]; obj != nil {
+			if fn, ok := obj.(*types.Func); ok {
+				r.Handler = objID(fn)
+			}
+		}
+	}
+	g.AddRoute(r)
 }
 
 func indexGenDecl(g *graph.Graph, pkg *packages.Package, fset *token.FileSet, d *ast.GenDecl) {

@@ -14,10 +14,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"github.com/yourorg/gonexus/gen/gonexus/v1/gonexusv1connect"
+	"github.com/yourorg/gonexus/internal/groups"
 	"github.com/yourorg/gonexus/internal/index"
 	"github.com/yourorg/gonexus/internal/llm"
+	"github.com/yourorg/gonexus/internal/skills"
 	"github.com/yourorg/gonexus/internal/mcp"
 	"github.com/yourorg/gonexus/internal/registry"
 	"github.com/yourorg/gonexus/internal/server"
@@ -28,7 +31,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("usage: gonexus [index <path> [name] | list | status | remove <name> | wiki [repo] | serve [addr] | mcp]")
+		fmt.Println("usage: gonexus [setup | index <path> [name] | list | status | remove <name> | clean <name> | group ... | skills [repo] | hooks | wiki [repo] | serve [addr] | mcp | doctor | uninstall]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -65,6 +68,27 @@ func main() {
 			addr = os.Args[2]
 		}
 		cmdServe(addr)
+	case "group":
+		cmdGroup(os.Args[2:])
+	case "skills":
+		repo := ""
+		if len(os.Args) > 2 {
+			repo = os.Args[2]
+		}
+		cmdSkills(repo)
+	case "hooks":
+		cmdHooks()
+	case "setup":
+		cmdSetup()
+	case "clean":
+		if len(os.Args) < 3 {
+			log.Fatal("usage: gonexus clean <name>")
+		}
+		cmdClean(os.Args[2])
+	case "doctor":
+		cmdDoctor()
+	case "uninstall":
+		cmdUninstall()
 	case "mcp":
 		// stdout is the JSON-RPC transport; keep it clean (log goes to stderr).
 		if err := mcp.Serve(); err != nil {
@@ -116,6 +140,157 @@ func cmdStatus() {
 		}
 		fmt.Printf("%-20s %-6s %s\n", n, state, f.Repos[n].Path)
 	}
+}
+
+func cmdGroup(args []string) {
+	usage := "usage: gonexus group [create <name> | add <group> <repo> | remove <group> [repo] | list | sync <group> | impact <group> <repo> <symbolID>]"
+	if len(args) == 0 {
+		log.Fatal(usage)
+	}
+	switch args[0] {
+	case "create":
+		must(len(args) >= 2, usage)
+		fatalIf(registry.GroupCreate(args[1]))
+		fmt.Printf("created group %q\n", args[1])
+	case "add":
+		must(len(args) >= 3, usage)
+		fatalIf(registry.GroupAddRepo(args[1], args[2]))
+		fmt.Printf("added %q to group %q\n", args[2], args[1])
+	case "remove":
+		must(len(args) >= 2, usage)
+		if len(args) >= 3 {
+			fatalIf(registry.GroupRemoveRepo(args[1], args[2]))
+		} else {
+			fatalIf(registry.GroupRemove(args[1]))
+		}
+		fmt.Println("done")
+	case "list":
+		f, err := registry.LoadGroups()
+		fatalIf(err)
+		for _, n := range f.Names() {
+			fmt.Printf("%-20s %v\n", n, f.Groups[n].Repos)
+		}
+	case "sync":
+		must(len(args) >= 2, usage)
+		res, err := groups.Sync(registry.NewStore(), args[1])
+		fatalIf(err)
+		fmt.Printf("group %q: %d cross-repo links\n", res.Group, len(res.Links))
+		for _, l := range res.Links {
+			fmt.Printf("  %-30s %v\n", l.Key, l.Repos)
+		}
+	case "impact":
+		must(len(args) >= 4, usage)
+		affected, key, err := groups.CrossImpact(registry.NewStore(), args[1], args[2], args[3])
+		fatalIf(err)
+		fmt.Printf("contract %q — repos possibly affected: %v\n", key, affected)
+	default:
+		log.Fatal(usage)
+	}
+}
+
+func must(cond bool, msg string) {
+	if !cond {
+		log.Fatal(msg)
+	}
+}
+
+func fatalIf(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// cmdSetup indexes the current directory and prints the MCP wiring command.
+func cmdSetup() {
+	cwd, err := os.Getwd()
+	fatalIf(err)
+	name, nodes, edges, err := index.IndexAndRegister(cwd, "")
+	fatalIf(err)
+	exe, _ := os.Executable()
+	fmt.Printf("indexed %q: %d nodes, %d edges\n", name, nodes, edges)
+	fmt.Printf("\nWire to Claude Code:\n  claude mcp add gonexus -- %s mcp\n", exe)
+}
+
+// cmdClean removes a repo's index cache and unregisters it.
+func cmdClean(name string) {
+	f, err := registry.Load()
+	fatalIf(err)
+	r, ok := f.Repos[name]
+	if !ok {
+		log.Fatalf("no such repo %q", name)
+	}
+	fatalIf(os.RemoveAll(registry.CacheDir(r.Path)))
+	fatalIf(registry.Remove(name))
+	fmt.Printf("cleaned %q (removed %s and unregistered)\n", name, registry.CacheDir(r.Path))
+}
+
+// cmdDoctor checks the environment GoNexus depends on.
+func cmdDoctor() {
+	check := func(label string, ok bool, note string) {
+		mark := "ok"
+		if !ok {
+			mark = "MISSING"
+		}
+		fmt.Printf("  %-8s %-16s %s\n", mark, label, note)
+	}
+	check("go", inPath("go"), "required to index Go repos")
+	check("node", inPath("node"), "required to index TS/JS/Vue")
+	check("git", inPath("git"), "required for detect_changes")
+	_, extErr := os.Stat("tools/ts-extractor/node_modules")
+	check("ts-deps", extErr == nil, "run: cd tools/ts-extractor && npm install")
+	if p, err := registry.Path(); err == nil {
+		_, rerr := os.Stat(p)
+		check("registry", rerr == nil || os.IsNotExist(rerr), p)
+	}
+	if emb := embedEnv(); emb {
+		check("embeddings", true, "GONEXUS_EMBED_URL set (semantic search on)")
+	}
+}
+
+func inPath(bin string) bool { _, err := exec.LookPath(bin); return err == nil }
+func embedEnv() bool         { return os.Getenv("GONEXUS_EMBED_URL") != "" }
+
+// cmdUninstall removes GoNexus's global state (~/.gonexus). Leaves your code.
+func cmdUninstall() {
+	home, err := os.UserHomeDir()
+	fatalIf(err)
+	dir := home + "/.gonexus"
+	fatalIf(os.RemoveAll(dir))
+	fmt.Printf("removed %s (registry, groups). Per-repo .gonexus/ caches are left in place.\n", dir)
+}
+
+func cmdSkills(repo string) {
+	g, _, err := registry.NewStore().Graph(repo)
+	fatalIf(err)
+	r, err := registry.NewStore().Repo(repo)
+	fatalIf(err)
+	outDir := registry.CacheDir(r.Path) + "/skills"
+	files, err := skills.Generate(g, r.Name, outDir)
+	fatalIf(err)
+	fmt.Printf("wrote %d skills to %s\n", len(files), outDir)
+}
+
+// cmdHooks prints a Claude Code hooks snippet: PreToolUse enriches with GoNexus
+// context, PostToolUse warns when the index is stale.
+func cmdHooks() {
+	fmt.Print(`Add to your Claude Code settings.json (hooks):
+
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "gonexus status | grep -q STALE && echo 'GoNexus index is stale; run: gonexus index <repo>' || true" }
+        ]
+      }
+    ]
+  }
+}
+
+The PostToolUse hook warns after edits when a repo's index no longer matches its
+source. Re-run 'gonexus index <path>' (or the reindex MCP tool) to refresh.
+`)
 }
 
 func cmdWiki(repo string) {

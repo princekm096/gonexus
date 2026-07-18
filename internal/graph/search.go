@@ -145,18 +145,41 @@ func (g *Graph) bm25Search(q string, k int) []string {
 // yields "buildrepo", "build", "repo".
 func tokenize(s string) []string {
 	var out []string
+	add := func(w string) {
+		out = append(out, w)
+		if st := stem(w); st != w {
+			out = append(out, st) // index the stem too, for recall
+		}
+	}
 	for _, field := range strings.FieldsFunc(s, func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
 	}) {
-		lower := strings.ToLower(field)
-		out = append(out, lower)
+		add(strings.ToLower(field))
 		if parts := splitCamel(field); len(parts) > 1 {
 			for _, p := range parts {
-				out = append(out, strings.ToLower(p))
+				add(strings.ToLower(p))
 			}
 		}
 	}
 	return out
+}
+
+// stem is a light suffix stripper (a Porter-lite, not the full algorithm) so
+// "parse"/"parsing"/"parsed"/"parses" share a token.
+// ponytail: naive ordered-suffix stripping; swap for a real Porter2 stemmer if
+// recall quality matters.
+var stemSuffixes = []string{"ies", "ions", "ion", "ing", "ers", "er", "ed", "es", "ly", "s"}
+
+func stem(w string) string {
+	for _, suf := range stemSuffixes {
+		if len(w) > len(suf)+2 && strings.HasSuffix(w, suf) {
+			if suf == "ies" {
+				return w[:len(w)-3] + "y"
+			}
+			return w[:len(w)-len(suf)]
+		}
+	}
+	return w
 }
 
 func splitCamel(s string) []string {

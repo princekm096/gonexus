@@ -34,6 +34,20 @@ service GoNexusService {
   rpc Rename(RenameRequest) returns (RenameResponse) {}
   // Wiki generates architecture documentation from the graph.
   rpc Wiki(WikiRequest) returns (WikiResponse) {}
+  // Explain returns taint (source→sink) findings (requires --pdg indexing).
+  rpc Explain(ExplainRequest) returns (ExplainResponse) {}
+  // PdgQuery returns a function's control/data dependence summary (--pdg).
+  rpc PdgQuery(PdgQueryRequest) returns (PdgQueryResponse) {}
+  // Check validates symbol ids and reports dangling edges.
+  rpc Check(CheckRequest) returns (CheckResponse) {}
+  // Cypher runs a single-hop graph pattern query.
+  rpc Cypher(CypherRequest) returns (CypherResponse) {}
+  // RouteMap lists detected HTTP endpoint → handler mappings.
+  rpc RouteMap(RouteMapRequest) returns (RouteMapResponse) {}
+  // ApiImpact returns the blast radius of the handler(s) behind a route.
+  rpc ApiImpact(ApiImpactRequest) returns (ApiImpactResponse) {}
+  // Ask answers a natural-language question about a repo (RAG over the graph).
+  rpc Ask(AskRequest) returns (AskResponse) {}
 }
 
 // repo names which registered repository a query targets. Empty selects the
@@ -87,7 +101,15 @@ message ImpactRequest {
   string id = 1;
   string repo = 2;
 }
-message ImpactResponse { repeated string ids = 1; }
+message ImpactHit {
+  string id = 1;
+  int32 depth = 2;       // call-graph distance from the changed symbol
+  double confidence = 3; // 1/depth: direct callers 1.0, two hops 0.5, ...
+}
+message ImpactResponse {
+  repeated string ids = 1;      // flat list (all transitive callers)
+  repeated ImpactHit hits = 2;  // depth-grouped with confidence
+}
 
 message TraceRequest {
   string from = 1;
@@ -169,3 +191,74 @@ message RenameResponse {
 
 message WikiRequest { string repo = 1; }
 message WikiResponse { string markdown = 1; }
+
+message ExplainRequest {
+  string repo = 1;
+  string id = 2; // optional: filter to one function
+}
+message TaintFinding {
+  string func = 1;
+  string source = 2;
+  string sink = 3;
+  int32 line = 4;
+}
+message ExplainResponse { repeated TaintFinding findings = 1; }
+
+message PdgQueryRequest {
+  string repo = 1;
+  string id = 2; // function id
+}
+message ControlEdge {
+  int32 from = 1;
+  int32 to = 2;
+}
+message PdgQueryResponse {
+  string id = 1;
+  int32 blocks = 2;
+  repeated ControlEdge ctrl_edges = 3;
+  int32 data_edges = 4;
+  repeated string params = 5;
+}
+
+message CheckRequest {
+  string repo = 1;
+  repeated string ids = 2;
+}
+message CheckResponse {
+  repeated string missing = 1;
+  repeated Edge dangling = 2;
+}
+
+message CypherRequest {
+  string repo = 1;
+  string pattern = 2; // (a:Kind)-[:EDGE]->(b:Kind)
+  int32 limit = 3;
+}
+message CypherResponse { repeated Edge edges = 1; }
+
+message Route {
+  string method = 1;
+  string path = 2;
+  string handler = 3;
+}
+message RouteMapRequest { string repo = 1; }
+message RouteMapResponse { repeated Route routes = 1; }
+
+message ApiImpactRequest {
+  string repo = 1;
+  string path = 2; // optional: filter to one route path
+}
+message RouteImpact {
+  Route route = 1;
+  repeated string impacted = 2;
+}
+message ApiImpactResponse { repeated RouteImpact routes = 1; }
+
+message AskRequest {
+  string repo = 1;
+  string question = 2;
+}
+message AskResponse {
+  string answer = 1;
+  repeated Node sources = 2; // symbols used as context
+}

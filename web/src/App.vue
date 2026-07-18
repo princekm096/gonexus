@@ -13,16 +13,36 @@ const graphNodes = ref([]);
 const graphEdges = ref([]);
 const focusId = ref("");
 const error = ref("");
+const connected = ref(true); // bridge: is a `gonexus serve` backend reachable?
+const ask = ref("");
+const answer = ref("");
+const asking = ref(false);
 
 onMounted(async () => {
   try {
     const r = await api.repos();
     repos.value = r.repos || [];
     if (repos.value.length) repo.value = repos.value[0].name;
+    connected.value = true;
   } catch (e) {
-    error.value = String(e);
+    connected.value = false; // no local backend detected
   }
 });
+
+async function runAsk() {
+  if (!ask.value.trim()) return;
+  asking.value = true;
+  answer.value = "";
+  try {
+    const r = await api.ask(ask.value, repo.value);
+    answer.value = r.answer || "";
+    results.value = r.sources || [];
+  } catch (e) {
+    error.value = String(e);
+  } finally {
+    asking.value = false;
+  }
+}
 
 async function search() {
   error.value = "";
@@ -63,6 +83,16 @@ const shortId = (id) => id.split("/").pop();
       <h1>GoNexus</h1>
       <span class="sub">code knowledge graph</span>
     </header>
+
+    <p v-if="!connected" class="banner">
+      No local backend detected. Start one with <code>gonexus serve :8080</code> and reload.
+    </p>
+
+    <form class="ask" @submit.prevent="runAsk">
+      <input v-model="ask" placeholder="Ask about this codebase…" />
+      <button type="submit" :disabled="asking">{{ asking ? "…" : "Ask" }}</button>
+    </form>
+    <pre v-if="answer" class="answer">{{ answer }}</pre>
 
     <form class="search" @submit.prevent="search">
       <select v-model="repo" class="repo">
@@ -142,6 +172,12 @@ h1 { margin: 0; font-size: 22px; }
 .sub { color: #7d8590; font-size: 13px; }
 .search { display: flex; gap: 8px; margin: 16px 0; }
 .search input { flex: 1; padding: 8px 10px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; }
+.banner { background: #3d2b16; border: 1px solid #9e6a03; color: #f0d9a8; padding: 8px 12px; border-radius: 6px; }
+.banner code { background: #161b22; padding: 1px 5px; border-radius: 4px; }
+.ask { display: flex; gap: 8px; margin: 12px 0; }
+.ask input { flex: 1; padding: 8px 10px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; }
+.ask button { padding: 8px 14px; background: #1f6feb; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+.answer { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; white-space: pre-wrap; color: #c9d1d9; }
 .search .repo { padding: 8px 10px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; }
 .search button, .impact-btn { padding: 8px 14px; background: #238636; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
 .error { color: #f85149; }

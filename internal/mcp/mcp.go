@@ -14,6 +14,10 @@ import (
 	"github.com/yourorg/gonexus/internal/changes"
 	"github.com/yourorg/gonexus/internal/embed"
 	"github.com/yourorg/gonexus/internal/graph"
+	"path/filepath"
+
+	"github.com/yourorg/gonexus/internal/analysis"
+	"github.com/yourorg/gonexus/internal/groups"
 	"github.com/yourorg/gonexus/internal/index"
 	"github.com/yourorg/gonexus/internal/llm"
 	"github.com/yourorg/gonexus/internal/registry"
@@ -25,20 +29,27 @@ type store struct {
 	repos *registry.Store
 	emb   embed.Embedder // nil unless GONEXUS_EMBED_URL is set
 	llm   llm.Client     // nil unless GONEXUS_LLM_URL is set
+	guard guardConfig
 }
 
 // Serve runs the MCP server on stdio. Repos come from ~/.gonexus/registry.json
 // and are loaded (and mtime-refreshed) on demand.
 func Serve() error {
-	st := &store{repos: registry.NewStore(), emb: embed.FromEnv(), llm: llm.FromEnv()}
+	st := &store{repos: registry.NewStore(), emb: embed.FromEnv(), llm: llm.FromEnv(), guard: loadGuardConfig()}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "gonexus", Version: "0.1.0"}, nil)
 	st.register(srv)
 	return srv.Run(context.Background(), &mcp.StdioTransport{})
 }
 
 func (st *store) graphFor(repo string) (*graph.Graph, error) {
-	g, _, err := st.repos.Graph(repo)
-	return g, err
+	g, name, err := st.repos.Graph(repo)
+	if err != nil {
+		return nil, err
+	}
+	if !st.guard.repoAllowed(name) {
+		return nil, fmt.Errorf("repo %q not in the allowed set", name)
+	}
+	return g, nil
 }
 
 // ---- tool I/O types (plain JSON structs; jsonschema tags document fields) ----
@@ -52,6 +63,7 @@ type nodeOut struct {
 	Line      int    `json:"line"`
 	Signature string `json:"signature,omitempty"`
 	Doc       string `json:"doc,omitempty"`
+	Process   string `json:"process,omitempty" jsonschema:"entry point whose flow reaches this symbol (search grouping)"`
 }
 
 type edgeOut struct {
@@ -83,8 +95,14 @@ type impactIn struct {
 	ID   string `json:"id" jsonschema:"symbol id to compute blast radius for"`
 	Repo string `json:"repo,omitempty" jsonschema:"repository name (from the repos tool); omit if only one repo is indexed"`
 }
+type impactHitOut struct {
+	ID         string  `json:"id"`
+	Depth      int     `json:"depth"`
+	Confidence float64 `json:"confidence"`
+}
 type impactOut struct {
-	Callers []string `json:"callers" jsonschema:"transitive callers that break if this symbol changes"`
+	Callers []string       `json:"callers" jsonschema:"transitive callers that break if this symbol changes"`
+	Hits    []impactHitOut `json:"hits" jsonschema:"callers grouped by depth with confidence (1/depth)"`
 }
 
 type traceIn struct {
@@ -176,6 +194,105 @@ type wikiIn struct {
 type wikiOut struct {
 	Markdown string `json:"markdown"`
 }
+
+type groupListIn struct{}
+type groupOut struct {
+	Name  string   `json:"name"`
+	Repos []string `json:"repos"`
+}
+type groupListOut struct {
+	Groups []groupOut `json:"groups"`
+}
+
+type groupSyncIn struct {
+	Group string `json:"group" jsonschema:"group name"`
+}
+type linkOut struct {
+	Key   string   `json:"key"`
+	Repos []string `json:"repos"`
+}
+type groupSyncOut struct {
+	Group          string         `json:"group"`
+	Links          []linkOut      `json:"links" jsonschema:"contract keys shared across repos (cross-repo dependencies)"`
+	ContractCounts map[string]int `json:"contractCounts"`
+}
+
+type toolMapIn struct{}
+type toolInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+type toolMapOut struct {
+	Tools []toolInfo `json:"tools"`
+}
+
+type checkIn struct {
+	IDs  []string `json:"ids" jsonschema:"symbol ids to validate"`
+	Repo string   `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type checkOut struct {
+	Missing  []string  `json:"missing" jsonschema:"ids not present in the graph"`
+	Dangling []edgeOut `json:"dangling" jsonschema:"edges with an endpoint missing from the graph"`
+}
+
+type cypherIn struct {
+	Pattern string `json:"pattern" jsonschema:"single-hop pattern, e.g. (a:func)-[:calls]->(b:method)"`
+	Limit   int    `json:"limit,omitempty"`
+	Repo    string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type cypherOut struct {
+	Edges []edgeOut `json:"edges"`
+}
+
+type routeMapIn struct {
+	Repo string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type routeOut struct {
+	Method  string `json:"method"`
+	Path    string `json:"path"`
+	Handler string `json:"handler"`
+}
+type routeMapOut struct {
+	Routes []routeOut `json:"routes"`
+}
+
+type apiImpactIn struct {
+	Path string `json:"path,omitempty" jsonschema:"optional route path to filter to"`
+	Repo string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type routeImpactOut struct {
+	Route    routeOut `json:"route"`
+	Impacted []string `json:"impacted"`
+}
+type apiImpactOut struct {
+	Routes []routeImpactOut `json:"routes"`
+}
+
+type explainIn struct {
+	ID   string `json:"id,omitempty" jsonschema:"optional function id to filter to"`
+	Repo string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type taintOut struct {
+	Func   string `json:"func"`
+	Source string `json:"source"`
+	Sink   string `json:"sink"`
+	Line   int    `json:"line"`
+}
+type explainOut struct {
+	Findings []taintOut `json:"findings" jsonschema:"source→sink taint flows (requires the repo indexed with GONEXUS_PDG=1)"`
+}
+
+type pdgIn struct {
+	ID   string `json:"id" jsonschema:"function id to inspect"`
+	Repo string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type pdgOut struct {
+	ID        string   `json:"id"`
+	Blocks    int      `json:"blocks"`
+	CtrlEdges [][2]int `json:"ctrlEdges" jsonschema:"CFG block index -> successor block index"`
+	DataEdges int      `json:"dataEdges" jsonschema:"SSA def-use (data dependence) edge count"`
+	Params    []string `json:"params"`
+}
 type clusterOut struct {
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`
@@ -243,9 +360,226 @@ func (st *store) register(srv *mcp.Server) {
 	}, st.wiki)
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "group_list",
+		Description: "List configured repository groups and their member repos.",
+	}, st.groupList)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "group_sync",
+		Description: "Build a group's cross-repo contract registry: shared contract keys (exported symbols / routes) that link repos together.",
+	}, st.groupSync)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "tool_map",
+		Description: "List all GoNexus tools and what they do. Call this to discover capabilities.",
+	}, st.toolMap)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "check",
+		Description: "Validate symbol ids against the graph and report dangling edges (read-only structural check).",
+	}, st.check)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "cypher",
+		Description: "Run a single-hop graph pattern query, e.g. (a:func)-[:calls]->(b:method).",
+	}, st.cypher)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "route_map",
+		Description: "List detected HTTP endpoint → handler mappings (Go routers: net/http, gin, echo, chi).",
+	}, st.routeMap)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "api_impact",
+		Description: "Blast radius of the handler(s) behind an HTTP route — what a route change affects.",
+	}, st.apiImpact)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "explain",
+		Description: "List source→sink taint flows (e.g. untrusted input reaching exec/SQL/file ops). Requires the repo indexed with GONEXUS_PDG=1.",
+	}, st.explain)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "pdg_query",
+		Description: "Control/data dependence for a function: CFG blocks + edges and SSA def-use count. Requires GONEXUS_PDG=1 indexing.",
+	}, st.pdgQuery)
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "reindex",
 		Description: "Index (or refresh) a repo by path and register it. Use when a repo is missing or its index is stale.",
 	}, st.reindex)
+
+	registerPrompts(srv)
+}
+
+// registerPrompts adds workflow prompts agents can invoke by name.
+func registerPrompts(srv *mcp.Server) {
+	prompt := func(name, desc, text string) {
+		srv.AddPrompt(&mcp.Prompt{Name: name, Description: desc},
+			func(context.Context, *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+				return &mcp.GetPromptResult{
+					Description: desc,
+					Messages: []*mcp.PromptMessage{{
+						Role:    "user",
+						Content: &mcp.TextContent{Text: text},
+					}},
+				}, nil
+			})
+	}
+	prompt("detect_impact",
+		"Analyze the impact of pending changes before committing.",
+		"Call the `detect_changes` tool to map the current git diff to the symbols it touches "+
+			"and their blast radius. Then summarize, as a pre-commit review: what changed, what "+
+			"downstream code could break, and which tests to run.")
+	prompt("generate_map",
+		"Generate architecture documentation for a repo.",
+		"Call the `wiki` tool for the repo, then present the architecture: a short overview, the "+
+			"main modules, entry points, and key interfaces. Include a mermaid diagram of how the "+
+			"top entry points connect to the main modules.")
+}
+
+func (st *store) pdgFor(repo string) (*analysis.Result, error) {
+	r, err := st.repos.Repo(repo)
+	if err != nil {
+		return nil, err
+	}
+	return analysis.Load(filepath.Join(r.Path, ".gonexus", "pdg.json"))
+}
+
+// allTools is the static catalog surfaced by tool_map.
+var allTools = []toolInfo{
+	{"repos", "list indexed repositories"},
+	{"query", "hybrid search for symbols"},
+	{"context", "360° view of a symbol"},
+	{"impact", "blast radius of a symbol"},
+	{"trace", "shortest call path between symbols"},
+	{"entrypoints", "execution-flow roots"},
+	{"process", "call-tree flow from an entry point"},
+	{"clusters", "emergent modules (community detection)"},
+	{"detect_changes", "git diff → changed symbols + blast radius"},
+	{"rename", "confidence-scored multi-file rename"},
+	{"wiki", "architecture documentation"},
+	{"explain", "source→sink taint findings (--pdg)"},
+	{"pdg_query", "function control/data dependence (--pdg)"},
+	{"check", "validate ids + dangling edges"},
+	{"cypher", "single-hop graph pattern query"},
+	{"route_map", "HTTP endpoint → handler mappings"},
+	{"api_impact", "blast radius behind a route"},
+	{"tool_map", "list all tools"},
+	{"reindex", "index/refresh a repo"},
+}
+
+func (st *store) groupList(_ context.Context, _ *mcp.CallToolRequest, _ groupListIn) (*mcp.CallToolResult, groupListOut, error) {
+	f, err := registry.LoadGroups()
+	if err != nil {
+		return nil, groupListOut{}, err
+	}
+	out := groupListOut{Groups: make([]groupOut, 0)}
+	for _, name := range f.Names() {
+		out.Groups = append(out.Groups, groupOut{Name: name, Repos: f.Groups[name].Repos})
+	}
+	return nil, out, nil
+}
+
+func (st *store) groupSync(_ context.Context, _ *mcp.CallToolRequest, in groupSyncIn) (*mcp.CallToolResult, groupSyncOut, error) {
+	res, err := groups.Sync(st.repos, in.Group)
+	if err != nil {
+		return nil, groupSyncOut{}, err
+	}
+	out := groupSyncOut{Group: res.Group, Links: make([]linkOut, 0, len(res.Links)), ContractCounts: map[string]int{}}
+	for _, l := range res.Links {
+		out.Links = append(out.Links, linkOut{Key: l.Key, Repos: l.Repos})
+	}
+	for repo, cs := range res.Contracts {
+		out.ContractCounts[repo] = len(cs)
+	}
+	return nil, out, nil
+}
+
+func (st *store) toolMap(_ context.Context, _ *mcp.CallToolRequest, _ toolMapIn) (*mcp.CallToolResult, toolMapOut, error) {
+	return nil, toolMapOut{Tools: allTools}, nil
+}
+
+func (st *store) check(_ context.Context, _ *mcp.CallToolRequest, in checkIn) (*mcp.CallToolResult, checkOut, error) {
+	g, err := st.graphFor(in.Repo)
+	if err != nil {
+		return nil, checkOut{}, err
+	}
+	missing, dangling := g.Check(in.IDs)
+	return nil, checkOut{Missing: missing, Dangling: toEdgeOut(dangling)}, nil
+}
+
+func (st *store) cypher(_ context.Context, _ *mcp.CallToolRequest, in cypherIn) (*mcp.CallToolResult, cypherOut, error) {
+	g, err := st.graphFor(in.Repo)
+	if err != nil {
+		return nil, cypherOut{}, err
+	}
+	edges, err := g.Cypher(in.Pattern, in.Limit)
+	if err != nil {
+		return nil, cypherOut{}, err
+	}
+	return nil, cypherOut{Edges: toEdgeOut(edges)}, nil
+}
+
+func (st *store) routeMap(_ context.Context, _ *mcp.CallToolRequest, in routeMapIn) (*mcp.CallToolResult, routeMapOut, error) {
+	g, err := st.graphFor(in.Repo)
+	if err != nil {
+		return nil, routeMapOut{}, err
+	}
+	out := routeMapOut{Routes: make([]routeOut, 0, len(g.Routes))}
+	for _, r := range g.Routes {
+		out.Routes = append(out.Routes, routeOut{Method: r.Method, Path: r.Path, Handler: r.Handler})
+	}
+	return nil, out, nil
+}
+
+func (st *store) apiImpact(_ context.Context, _ *mcp.CallToolRequest, in apiImpactIn) (*mcp.CallToolResult, apiImpactOut, error) {
+	g, err := st.graphFor(in.Repo)
+	if err != nil {
+		return nil, apiImpactOut{}, err
+	}
+	out := apiImpactOut{Routes: make([]routeImpactOut, 0)}
+	for _, r := range g.Routes {
+		if in.Path != "" && r.Path != in.Path {
+			continue
+		}
+		var impacted []string
+		if r.Handler != "" {
+			impacted = g.Impact(r.Handler)
+		}
+		out.Routes = append(out.Routes, routeImpactOut{
+			Route:    routeOut{Method: r.Method, Path: r.Path, Handler: r.Handler},
+			Impacted: impacted,
+		})
+	}
+	return nil, out, nil
+}
+
+func (st *store) explain(_ context.Context, _ *mcp.CallToolRequest, in explainIn) (*mcp.CallToolResult, explainOut, error) {
+	res, err := st.pdgFor(in.Repo)
+	if err != nil {
+		return nil, explainOut{}, err
+	}
+	out := explainOut{Findings: make([]taintOut, 0)}
+	for _, t := range res.TaintForFunc(in.ID) {
+		out.Findings = append(out.Findings, taintOut{Func: t.Func, Source: t.Source, Sink: t.Sink, Line: t.Line})
+	}
+	return nil, out, nil
+}
+
+func (st *store) pdgQuery(_ context.Context, _ *mcp.CallToolRequest, in pdgIn) (*mcp.CallToolResult, pdgOut, error) {
+	res, err := st.pdgFor(in.Repo)
+	if err != nil {
+		return nil, pdgOut{}, err
+	}
+	fp := res.FindByFunc(in.ID)
+	if fp == nil {
+		return nil, pdgOut{}, fmt.Errorf("no PDG for %q (index with GONEXUS_PDG=1)", in.ID)
+	}
+	return nil, pdgOut{
+		ID: fp.ID, Blocks: fp.Blocks, CtrlEdges: fp.CtrlEdges,
+		DataEdges: fp.DataEdges, Params: fp.Params,
+	}, nil
 }
 
 // ---- handlers ----
@@ -273,9 +607,12 @@ func (st *store) query(ctx context.Context, _ *mcp.CallToolRequest, in queryIn) 
 	if limit <= 0 {
 		limit = 20
 	}
+	limit = min(limit, st.guard.listCap(limit)) // enforce response budget
 	out := queryOut{Results: make([]nodeOut, 0, limit)}
 	for _, n := range g.SearchHybrid(in.Q, limit, st.queryVector(ctx, in.Q)) {
-		out.Results = append(out.Results, toNodeOut(n))
+		no := toNodeOut(n)
+		no.Process = g.ProcessOf(n.ID) // group result by its execution flow
+		out.Results = append(out.Results, no)
 	}
 	return nil, out, nil
 }
@@ -310,7 +647,11 @@ func (st *store) impact(_ context.Context, _ *mcp.CallToolRequest, in impactIn) 
 	if err != nil {
 		return nil, impactOut{}, err
 	}
-	return nil, impactOut{Callers: g.Impact(in.ID)}, nil
+	out := impactOut{Callers: g.Impact(in.ID)}
+	for _, h := range g.ImpactGraded(in.ID) {
+		out.Hits = append(out.Hits, impactHitOut{ID: h.ID, Depth: h.Depth, Confidence: h.Confidence})
+	}
+	return nil, out, nil
 }
 
 func (st *store) trace(_ context.Context, _ *mcp.CallToolRequest, in traceIn) (*mcp.CallToolResult, traceOut, error) {
@@ -378,7 +719,11 @@ func (st *store) rename(_ context.Context, _ *mcp.CallToolRequest, in renameIn) 
 	if err != nil {
 		return nil, renameOut{}, err
 	}
-	res, err := rename.Plan(g, in.ID, in.NewName, in.Apply)
+	apply := in.Apply
+	if st.guard.readOnly && apply {
+		apply = false // read-only: downgrade to plan-only, never write
+	}
+	res, err := rename.Plan(g, in.ID, in.NewName, apply)
 	if err != nil {
 		return nil, renameOut{}, err
 	}
@@ -423,6 +768,9 @@ func (st *store) clusters(_ context.Context, _ *mcp.CallToolRequest, in clusters
 }
 
 func (st *store) reindex(_ context.Context, _ *mcp.CallToolRequest, in reindexIn) (*mcp.CallToolResult, reindexOut, error) {
+	if st.guard.readOnly {
+		return nil, reindexOut{}, fmt.Errorf("read-only mode: reindex disabled (GONEXUS_MCP_READ_ONLY)")
+	}
 	name, nodes, edges, err := index.IndexAndRegister(in.Path, in.Name)
 	if err != nil {
 		return nil, reindexOut{}, err

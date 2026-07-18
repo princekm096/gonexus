@@ -43,3 +43,19 @@ func TestProcessesOf(t *testing.T) {
 		t.Fatalf("processesOf(c) = %v, want [a e]", got)
 	}
 }
+
+func TestImpactGraded(t *testing.T) {
+	g := procGraph() // a->b->c, e->b
+	graded := g.ImpactGraded("c")
+	// b is a direct caller (depth 1, conf 1.0); a and e are depth 2 (conf 0.5).
+	byID := map[string]GradedImpact{}
+	for _, gi := range graded {
+		byID[gi.ID] = gi
+	}
+	if byID["b"].Depth != 1 || byID["b"].Confidence != 1.0 {
+		t.Fatalf("b = %+v, want depth1 conf1.0", byID["b"])
+	}
+	if byID["a"].Depth != 2 || byID["e"].Depth != 2 {
+		t.Fatalf("a/e should be depth 2: %+v", graded)
+	}
+}

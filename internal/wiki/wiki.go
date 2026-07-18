@@ -37,6 +37,7 @@ type hotInfo struct {
 type Digest struct {
 	Repo                      string
 	Packages, Funcs, Types, N int
+	Frameworks                []string
 	Modules                   []graph.Community
 	Entries                   []entryInfo
 	Interfaces                []ifaceInfo
@@ -45,7 +46,7 @@ type Digest struct {
 
 // Build computes the digest from the graph.
 func Build(g *graph.Graph, repo string) Digest {
-	d := Digest{Repo: repo, N: len(g.Nodes)}
+	d := Digest{Repo: repo, N: len(g.Nodes), Frameworks: graph.Frameworks(g)}
 	for _, n := range g.Nodes {
 		switch n.Kind {
 		case graph.KindPackage:
@@ -127,6 +128,10 @@ func (d Digest) Markdown() string {
 	fmt.Fprintf(&b, "# %s — Architecture\n\n", d.Repo)
 	fmt.Fprintf(&b, "%d symbols across %d packages: %d functions/methods, %d types.\n\n",
 		d.N, d.Packages, d.Funcs, d.Types)
+
+	if len(d.Frameworks) > 0 {
+		fmt.Fprintf(&b, "**Frameworks/libraries:** %s\n\n", strings.Join(d.Frameworks, ", "))
+	}
 
 	b.WriteString("## Modules\n\n")
 	b.WriteString("Emergent functional clusters (community detection over the call graph):\n\n")

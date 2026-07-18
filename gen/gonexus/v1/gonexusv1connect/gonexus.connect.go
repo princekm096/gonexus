@@ -61,6 +61,21 @@ const (
 	GoNexusServiceRenameProcedure = "/gonexus.v1.GoNexusService/Rename"
 	// GoNexusServiceWikiProcedure is the fully-qualified name of the GoNexusService's Wiki RPC.
 	GoNexusServiceWikiProcedure = "/gonexus.v1.GoNexusService/Wiki"
+	// GoNexusServiceExplainProcedure is the fully-qualified name of the GoNexusService's Explain RPC.
+	GoNexusServiceExplainProcedure = "/gonexus.v1.GoNexusService/Explain"
+	// GoNexusServicePdgQueryProcedure is the fully-qualified name of the GoNexusService's PdgQuery RPC.
+	GoNexusServicePdgQueryProcedure = "/gonexus.v1.GoNexusService/PdgQuery"
+	// GoNexusServiceCheckProcedure is the fully-qualified name of the GoNexusService's Check RPC.
+	GoNexusServiceCheckProcedure = "/gonexus.v1.GoNexusService/Check"
+	// GoNexusServiceCypherProcedure is the fully-qualified name of the GoNexusService's Cypher RPC.
+	GoNexusServiceCypherProcedure = "/gonexus.v1.GoNexusService/Cypher"
+	// GoNexusServiceRouteMapProcedure is the fully-qualified name of the GoNexusService's RouteMap RPC.
+	GoNexusServiceRouteMapProcedure = "/gonexus.v1.GoNexusService/RouteMap"
+	// GoNexusServiceApiImpactProcedure is the fully-qualified name of the GoNexusService's ApiImpact
+	// RPC.
+	GoNexusServiceApiImpactProcedure = "/gonexus.v1.GoNexusService/ApiImpact"
+	// GoNexusServiceAskProcedure is the fully-qualified name of the GoNexusService's Ask RPC.
+	GoNexusServiceAskProcedure = "/gonexus.v1.GoNexusService/Ask"
 )
 
 // GoNexusServiceClient is a client for the gonexus.v1.GoNexusService service.
@@ -91,6 +106,20 @@ type GoNexusServiceClient interface {
 	Rename(context.Context, *connect.Request[v1.RenameRequest]) (*connect.Response[v1.RenameResponse], error)
 	// Wiki generates architecture documentation from the graph.
 	Wiki(context.Context, *connect.Request[v1.WikiRequest]) (*connect.Response[v1.WikiResponse], error)
+	// Explain returns taint (source→sink) findings (requires --pdg indexing).
+	Explain(context.Context, *connect.Request[v1.ExplainRequest]) (*connect.Response[v1.ExplainResponse], error)
+	// PdgQuery returns a function's control/data dependence summary (--pdg).
+	PdgQuery(context.Context, *connect.Request[v1.PdgQueryRequest]) (*connect.Response[v1.PdgQueryResponse], error)
+	// Check validates symbol ids and reports dangling edges.
+	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
+	// Cypher runs a single-hop graph pattern query.
+	Cypher(context.Context, *connect.Request[v1.CypherRequest]) (*connect.Response[v1.CypherResponse], error)
+	// RouteMap lists detected HTTP endpoint → handler mappings.
+	RouteMap(context.Context, *connect.Request[v1.RouteMapRequest]) (*connect.Response[v1.RouteMapResponse], error)
+	// ApiImpact returns the blast radius of the handler(s) behind a route.
+	ApiImpact(context.Context, *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error)
+	// Ask answers a natural-language question about a repo (RAG over the graph).
+	Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error)
 }
 
 // NewGoNexusServiceClient constructs a client for the gonexus.v1.GoNexusService service. By
@@ -182,6 +211,48 @@ func NewGoNexusServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(goNexusServiceMethods.ByName("Wiki")),
 			connect.WithClientOptions(opts...),
 		),
+		explain: connect.NewClient[v1.ExplainRequest, v1.ExplainResponse](
+			httpClient,
+			baseURL+GoNexusServiceExplainProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Explain")),
+			connect.WithClientOptions(opts...),
+		),
+		pdgQuery: connect.NewClient[v1.PdgQueryRequest, v1.PdgQueryResponse](
+			httpClient,
+			baseURL+GoNexusServicePdgQueryProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("PdgQuery")),
+			connect.WithClientOptions(opts...),
+		),
+		check: connect.NewClient[v1.CheckRequest, v1.CheckResponse](
+			httpClient,
+			baseURL+GoNexusServiceCheckProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Check")),
+			connect.WithClientOptions(opts...),
+		),
+		cypher: connect.NewClient[v1.CypherRequest, v1.CypherResponse](
+			httpClient,
+			baseURL+GoNexusServiceCypherProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Cypher")),
+			connect.WithClientOptions(opts...),
+		),
+		routeMap: connect.NewClient[v1.RouteMapRequest, v1.RouteMapResponse](
+			httpClient,
+			baseURL+GoNexusServiceRouteMapProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("RouteMap")),
+			connect.WithClientOptions(opts...),
+		),
+		apiImpact: connect.NewClient[v1.ApiImpactRequest, v1.ApiImpactResponse](
+			httpClient,
+			baseURL+GoNexusServiceApiImpactProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("ApiImpact")),
+			connect.WithClientOptions(opts...),
+		),
+		ask: connect.NewClient[v1.AskRequest, v1.AskResponse](
+			httpClient,
+			baseURL+GoNexusServiceAskProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Ask")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -200,6 +271,13 @@ type goNexusServiceClient struct {
 	detectChanges *connect.Client[v1.DetectChangesRequest, v1.DetectChangesResponse]
 	rename        *connect.Client[v1.RenameRequest, v1.RenameResponse]
 	wiki          *connect.Client[v1.WikiRequest, v1.WikiResponse]
+	explain       *connect.Client[v1.ExplainRequest, v1.ExplainResponse]
+	pdgQuery      *connect.Client[v1.PdgQueryRequest, v1.PdgQueryResponse]
+	check         *connect.Client[v1.CheckRequest, v1.CheckResponse]
+	cypher        *connect.Client[v1.CypherRequest, v1.CypherResponse]
+	routeMap      *connect.Client[v1.RouteMapRequest, v1.RouteMapResponse]
+	apiImpact     *connect.Client[v1.ApiImpactRequest, v1.ApiImpactResponse]
+	ask           *connect.Client[v1.AskRequest, v1.AskResponse]
 }
 
 // Index calls gonexus.v1.GoNexusService.Index.
@@ -267,6 +345,41 @@ func (c *goNexusServiceClient) Wiki(ctx context.Context, req *connect.Request[v1
 	return c.wiki.CallUnary(ctx, req)
 }
 
+// Explain calls gonexus.v1.GoNexusService.Explain.
+func (c *goNexusServiceClient) Explain(ctx context.Context, req *connect.Request[v1.ExplainRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	return c.explain.CallUnary(ctx, req)
+}
+
+// PdgQuery calls gonexus.v1.GoNexusService.PdgQuery.
+func (c *goNexusServiceClient) PdgQuery(ctx context.Context, req *connect.Request[v1.PdgQueryRequest]) (*connect.Response[v1.PdgQueryResponse], error) {
+	return c.pdgQuery.CallUnary(ctx, req)
+}
+
+// Check calls gonexus.v1.GoNexusService.Check.
+func (c *goNexusServiceClient) Check(ctx context.Context, req *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error) {
+	return c.check.CallUnary(ctx, req)
+}
+
+// Cypher calls gonexus.v1.GoNexusService.Cypher.
+func (c *goNexusServiceClient) Cypher(ctx context.Context, req *connect.Request[v1.CypherRequest]) (*connect.Response[v1.CypherResponse], error) {
+	return c.cypher.CallUnary(ctx, req)
+}
+
+// RouteMap calls gonexus.v1.GoNexusService.RouteMap.
+func (c *goNexusServiceClient) RouteMap(ctx context.Context, req *connect.Request[v1.RouteMapRequest]) (*connect.Response[v1.RouteMapResponse], error) {
+	return c.routeMap.CallUnary(ctx, req)
+}
+
+// ApiImpact calls gonexus.v1.GoNexusService.ApiImpact.
+func (c *goNexusServiceClient) ApiImpact(ctx context.Context, req *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error) {
+	return c.apiImpact.CallUnary(ctx, req)
+}
+
+// Ask calls gonexus.v1.GoNexusService.Ask.
+func (c *goNexusServiceClient) Ask(ctx context.Context, req *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error) {
+	return c.ask.CallUnary(ctx, req)
+}
+
 // GoNexusServiceHandler is an implementation of the gonexus.v1.GoNexusService service.
 type GoNexusServiceHandler interface {
 	// Index parses a repo into the graph and persists it.
@@ -295,6 +408,20 @@ type GoNexusServiceHandler interface {
 	Rename(context.Context, *connect.Request[v1.RenameRequest]) (*connect.Response[v1.RenameResponse], error)
 	// Wiki generates architecture documentation from the graph.
 	Wiki(context.Context, *connect.Request[v1.WikiRequest]) (*connect.Response[v1.WikiResponse], error)
+	// Explain returns taint (source→sink) findings (requires --pdg indexing).
+	Explain(context.Context, *connect.Request[v1.ExplainRequest]) (*connect.Response[v1.ExplainResponse], error)
+	// PdgQuery returns a function's control/data dependence summary (--pdg).
+	PdgQuery(context.Context, *connect.Request[v1.PdgQueryRequest]) (*connect.Response[v1.PdgQueryResponse], error)
+	// Check validates symbol ids and reports dangling edges.
+	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
+	// Cypher runs a single-hop graph pattern query.
+	Cypher(context.Context, *connect.Request[v1.CypherRequest]) (*connect.Response[v1.CypherResponse], error)
+	// RouteMap lists detected HTTP endpoint → handler mappings.
+	RouteMap(context.Context, *connect.Request[v1.RouteMapRequest]) (*connect.Response[v1.RouteMapResponse], error)
+	// ApiImpact returns the blast radius of the handler(s) behind a route.
+	ApiImpact(context.Context, *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error)
+	// Ask answers a natural-language question about a repo (RAG over the graph).
+	Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error)
 }
 
 // NewGoNexusServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -382,6 +509,48 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 		connect.WithSchema(goNexusServiceMethods.ByName("Wiki")),
 		connect.WithHandlerOptions(opts...),
 	)
+	goNexusServiceExplainHandler := connect.NewUnaryHandler(
+		GoNexusServiceExplainProcedure,
+		svc.Explain,
+		connect.WithSchema(goNexusServiceMethods.ByName("Explain")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServicePdgQueryHandler := connect.NewUnaryHandler(
+		GoNexusServicePdgQueryProcedure,
+		svc.PdgQuery,
+		connect.WithSchema(goNexusServiceMethods.ByName("PdgQuery")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceCheckHandler := connect.NewUnaryHandler(
+		GoNexusServiceCheckProcedure,
+		svc.Check,
+		connect.WithSchema(goNexusServiceMethods.ByName("Check")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceCypherHandler := connect.NewUnaryHandler(
+		GoNexusServiceCypherProcedure,
+		svc.Cypher,
+		connect.WithSchema(goNexusServiceMethods.ByName("Cypher")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceRouteMapHandler := connect.NewUnaryHandler(
+		GoNexusServiceRouteMapProcedure,
+		svc.RouteMap,
+		connect.WithSchema(goNexusServiceMethods.ByName("RouteMap")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceApiImpactHandler := connect.NewUnaryHandler(
+		GoNexusServiceApiImpactProcedure,
+		svc.ApiImpact,
+		connect.WithSchema(goNexusServiceMethods.ByName("ApiImpact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceAskHandler := connect.NewUnaryHandler(
+		GoNexusServiceAskProcedure,
+		svc.Ask,
+		connect.WithSchema(goNexusServiceMethods.ByName("Ask")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/gonexus.v1.GoNexusService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GoNexusServiceIndexProcedure:
@@ -410,6 +579,20 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 			goNexusServiceRenameHandler.ServeHTTP(w, r)
 		case GoNexusServiceWikiProcedure:
 			goNexusServiceWikiHandler.ServeHTTP(w, r)
+		case GoNexusServiceExplainProcedure:
+			goNexusServiceExplainHandler.ServeHTTP(w, r)
+		case GoNexusServicePdgQueryProcedure:
+			goNexusServicePdgQueryHandler.ServeHTTP(w, r)
+		case GoNexusServiceCheckProcedure:
+			goNexusServiceCheckHandler.ServeHTTP(w, r)
+		case GoNexusServiceCypherProcedure:
+			goNexusServiceCypherHandler.ServeHTTP(w, r)
+		case GoNexusServiceRouteMapProcedure:
+			goNexusServiceRouteMapHandler.ServeHTTP(w, r)
+		case GoNexusServiceApiImpactProcedure:
+			goNexusServiceApiImpactHandler.ServeHTTP(w, r)
+		case GoNexusServiceAskProcedure:
+			goNexusServiceAskHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -469,4 +652,32 @@ func (UnimplementedGoNexusServiceHandler) Rename(context.Context, *connect.Reque
 
 func (UnimplementedGoNexusServiceHandler) Wiki(context.Context, *connect.Request[v1.WikiRequest]) (*connect.Response[v1.WikiResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Wiki is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Explain(context.Context, *connect.Request[v1.ExplainRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Explain is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) PdgQuery(context.Context, *connect.Request[v1.PdgQueryRequest]) (*connect.Response[v1.PdgQueryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.PdgQuery is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Check is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Cypher(context.Context, *connect.Request[v1.CypherRequest]) (*connect.Response[v1.CypherResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Cypher is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) RouteMap(context.Context, *connect.Request[v1.RouteMapRequest]) (*connect.Response[v1.RouteMapResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.RouteMap is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) ApiImpact(context.Context, *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.ApiImpact is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Ask is not implemented"))
 }

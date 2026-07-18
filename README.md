@@ -70,13 +70,20 @@ That's it. Query from the UI, from an agent, or with `curl` (see
 ## CLI
 
 ```
+gonexus setup                 Index the current dir + print the MCP wiring command.
 gonexus index <path> [name]   Index a repo and register it (incremental).
 gonexus list                  List registered repos.
 gonexus status                Show which repo indexes are stale.
 gonexus remove <name>         Drop a repo from the registry.
+gonexus clean <name>          Remove a repo's index cache and unregister it.
+gonexus group ...             Manage repo groups (create/add/remove/list/sync/impact).
+gonexus skills [repo]         Generate agent skill files for a repo.
+gonexus hooks                 Print a Claude Code hooks snippet (stale-index warnings).
 gonexus wiki [repo]           Print architecture docs (markdown) to stdout.
 gonexus serve [addr]          Serve all registered repos (default :8080).
 gonexus mcp                   Serve over MCP stdio (for agents).
+gonexus doctor                Check required tools/deps.
+gonexus uninstall             Remove ~/.gonexus global state.
 ```
 
 Repos are tracked in `~/.gonexus/registry.json`; each repo's graph lives in its
@@ -106,7 +113,17 @@ Tools (all take an optional `repo` arg; omit it when only one repo is indexed):
 | `detect_changes` | git diff → changed symbols + their blast radius |
 | `rename` | confidence-scored multi-file rename (plan or apply) |
 | `wiki` | generated architecture documentation |
+| `explain` | source→sink taint findings (needs `GONEXUS_PDG=1` indexing) |
+| `pdg_query` | a function's CFG + data-dependence summary (needs `--pdg`) |
+| `check` | validate symbol ids + report dangling edges |
+| `cypher` | single-hop graph pattern query |
+| `route_map` / `api_impact` | HTTP routes → handlers, and route blast radius |
+| `tool_map` | list all tools |
+| `group_list` / `group_sync` | repo groups + cross-repo contract links |
 | `reindex` | (re)index a repo by path |
+
+MCP prompts: `detect_impact` (pre-commit change analysis), `generate_map`
+(architecture doc with a mermaid diagram).
 
 Typical agent loop: `impact` before editing a symbol; `detect_changes` before
 committing; `context`/`trace` while navigating.
@@ -150,7 +167,8 @@ curl -s localhost:8080/gonexus.v1.GoNexusService/Rename \
 ```
 
 Methods: `Index`, `Query`, `Context`, `Impact`, `Trace`, `Subgraph`, `Repos`,
-`EntryPoints`, `Process`, `Clusters`, `DetectChanges`, `Rename`, `Wiki`. Full
+`EntryPoints`, `Process`, `Clusters`, `DetectChanges`, `Rename`, `Wiki`,
+`Explain`, `PdgQuery`. Full
 message shapes are in [`proto/gonexus/v1/gonexus.proto`](proto/gonexus/v1/gonexus.proto).
 Symbol ids come from `Query`/`Context` results (Go: `pkg/path.Type.Method`;
 TS/Vue: `relpath#Symbol`).
@@ -168,6 +186,7 @@ All optional. Unset → sensible defaults (BM25 search, structural wiki).
 | `GONEXUS_LLM_MODEL` | chat model name |
 | `GONEXUS_LLM_KEY` | Bearer token for the chat endpoint |
 | `GONEXUS_TS_EXTRACTOR` | path to `extract.mjs` if not at `tools/ts-extractor/extract.mjs` |
+| `GONEXUS_PDG` | set to `1` at index time to build the SSA PDG + taint analysis (Go; heavier) |
 
 Semantic search needs the embed vars set **at index time** (to store node
 vectors) *and* at query time (to embed the query). Example with a local Ollama:
@@ -191,7 +210,12 @@ gonexus serve :8080                   # embeds queries
 ```
 
 - **Nodes**: packages, files, functions, methods, types, interfaces, classes,
-  Vue components. **Edges**: `calls`, `imports`, `implements`, `defines`.
+  Vue components. **Edges**: `calls`, `imports`, `implements`, `defines`,
+  `constructs` (constructor → type).
+- **Deep analysis (Go, opt-in `GONEXUS_PDG=1`)**: SSA-based control-flow graphs,
+  statement-level data dependence (def-use), and source→sink taint — queried via
+  `explain` / `pdg_query`. Framework detection + constructor inference are
+  always on.
 - Go and TS/Vue are indexed by their own compilers, then **merged** into one
   graph — a repo with a Go backend and a Vue frontend is a single graph.
 - The graph is held in memory and persisted as JSON. Queries (impact, trace,
@@ -216,6 +240,17 @@ cmd/gonexus/        CLI entrypoint
 tools/ts-extractor/  Node sidecar: TS/JS/Vue → {nodes, edges}
 web/                 Vue 3 + Vite UI (Sigma.js WebGL graph)
 ```
+
+## Docker
+
+```bash
+docker build -t gonexus .
+docker run -p 8080:8080 -v "$PWD:/repo" gonexus index /repo myrepo
+docker run -p 8080:8080 gonexus serve :8080
+```
+
+The image bundles the Go toolchain + Node + extractor deps (both are needed at
+index time). CI (build/test + image build) is in `.github/workflows/ci.yml`.
 
 ## Development
 

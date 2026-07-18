@@ -72,3 +72,16 @@ func ids(ns []*Node) []string {
 	}
 	return out
 }
+
+func TestStem(t *testing.T) {
+	cases := map[string]string{"parsing": "pars", "parsed": "pars", "parses": "pars", "queries": "query"}
+	for in, want := range cases {
+		if got := stem(in); got != want {
+			t.Errorf("stem(%q)=%q, want %q", in, got, want)
+		}
+	}
+	// short words unchanged
+	if stem("go") != "go" {
+		t.Error("short word should not stem")
+	}
+}

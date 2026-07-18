@@ -16,6 +16,7 @@ async function call(method, body) {
 
 export const api = {
   repos: () => call("Repos", {}),
+  ask: (question, repo) => call("Ask", { question, repo }),
   query: (q, repo, limit = 20) => call("Query", { q, repo, limit }),
   context: (id, repo) => call("Context", { id, repo }),
   impact: (id, repo) => call("Impact", { id, repo }),
