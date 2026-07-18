@@ -48,6 +48,8 @@ service GoNexusService {
   rpc ApiImpact(ApiImpactRequest) returns (ApiImpactResponse) {}
   // Ask answers a natural-language question about a repo (RAG over the graph).
   rpc Ask(AskRequest) returns (AskResponse) {}
+  // ShapeCheck validates consumer property access against provider type shapes.
+  rpc ShapeCheck(ShapeCheckRequest) returns (ShapeCheckResponse) {}
 }
 
 // repo names which registered repository a query targets. Empty selects the
@@ -158,6 +160,7 @@ message Cluster {
   string id = 1;
   string name = 2;
   repeated string members = 3;
+  double cohesion = 4; // internal/incident edge weight, 0..1
 }
 message ClustersResponse { repeated Cluster clusters = 1; }
 
@@ -262,3 +265,12 @@ message AskResponse {
   string answer = 1;
   repeated Node sources = 2; // symbols used as context
 }
+
+message ShapeCheckRequest { string repo = 1; }
+message ShapeFinding {
+  string object = 1;
+  string type = 2;
+  string file = 3;
+  repeated string unknown = 4; // accessed props not on the provider type
+}
+message ShapeCheckResponse { repeated ShapeFinding findings = 1; }

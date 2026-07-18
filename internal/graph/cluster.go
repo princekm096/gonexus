@@ -20,9 +20,10 @@ const clusterMaxIters = 20
 // Community is an emergent module: a set of related nodes with a name derived
 // from their dominant package.
 type Community struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Members []string `json:"members"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Members  []string `json:"members"`
+	Cohesion float64  `json:"cohesion"` // internal / (internal+boundary) edge weight, 0..1
 }
 
 // Communities returns detected communities of size >= 2, sorted largest first.
@@ -61,7 +62,7 @@ func (g *Graph) detectCommunities() []Community {
 	}
 	sort.Strings(nodes) // deterministic sweep order
 
-	label := louvainMove(nodes, adj)
+	label := louvain(nodes, adj)
 
 	// Group by final label.
 	groups := map[string][]string{}
@@ -75,7 +76,10 @@ func (g *Graph) detectCommunities() []Community {
 			continue // singletons aren't modules
 		}
 		sort.Strings(members)
-		out = append(out, Community{ID: lbl, Name: g.communityName(members), Members: members})
+		out = append(out, Community{
+			ID: lbl, Name: g.communityName(members), Members: members,
+			Cohesion: cohesion(members, adj),
+		})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if len(out[i].Members) != len(out[j].Members) {
@@ -86,11 +90,77 @@ func (g *Graph) detectCommunities() []Community {
 	return out
 }
 
+// louvain runs multi-level Louvain: local modularity moves, then aggregate each
+// community into a super-node and repeat, until no community merges. Returns the
+// final original-node → community label. Deterministic throughout.
+func louvain(nodes []string, adj map[string]map[string]int) map[string]string {
+	part := make(map[string]string, len(nodes)) // original node -> current community
+	for _, n := range nodes {
+		part[n] = n
+	}
+	curNodes, curAdj := nodes, adj
+	for {
+		labels := louvainMove(curNodes, curAdj)
+		distinct := map[string]bool{}
+		for _, c := range labels {
+			distinct[c] = true
+		}
+		if len(distinct) == len(curNodes) {
+			break // nothing merged this level
+		}
+		for orig, c := range part {
+			part[orig] = labels[c]
+		}
+		// aggregate communities into super-nodes (self-loops carry internal weight).
+		agg := map[string]map[string]int{}
+		for u, nbrs := range curAdj {
+			cu := labels[u]
+			if agg[cu] == nil {
+				agg[cu] = map[string]int{}
+			}
+			for v, w := range nbrs {
+				agg[cu][labels[v]] += w
+			}
+		}
+		next := make([]string, 0, len(agg))
+		for c := range agg {
+			next = append(next, c)
+		}
+		sort.Strings(next)
+		curNodes, curAdj = next, agg
+		if len(curNodes) <= 1 {
+			break
+		}
+	}
+	return part
+}
+
+// cohesion is a community's internal edge weight over its total incident weight
+// (1.0 = fully self-contained). adj is the original (undirected, doubled) graph.
+func cohesion(members []string, adj map[string]map[string]int) float64 {
+	in := map[string]bool{}
+	for _, m := range members {
+		in[m] = true
+	}
+	var internal, incident float64
+	for _, m := range members {
+		for v, w := range adj[m] {
+			incident += float64(w)
+			if in[v] {
+				internal += float64(w)
+			}
+		}
+	}
+	if incident == 0 {
+		return 0
+	}
+	return internal / incident
+}
+
 // louvainMove runs one level of Louvain modularity optimization: each node
 // greedily moves to the neighbor community that maximizes modularity gain,
 // iterating to a fixpoint. Deterministic (fixed order, smallest-id tie-break).
-// ponytail: single level (no community aggregation/recursion) — already fixes
-// LPA's giant-community drift; full multi-level Louvain is the upgrade path.
+// Handles aggregated graphs with self-loops.
 func louvainMove(nodes []string, adj map[string]map[string]int) map[string]string {
 	deg := map[string]float64{}
 	var m2 float64 // sum of weighted degrees = 2m

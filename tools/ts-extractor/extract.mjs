@@ -91,6 +91,7 @@ const checker = program.getTypeChecker();
 
 const nodes = [];
 const edges = [];
+const shapes = [];          // {object, props, file} consumer access shapes
 const idByDecl = new Map(); // declaration ts.Node -> node id (consistent IDs)
 const callSites = [];       // {from, callee: expression}
 
@@ -113,6 +114,8 @@ for (const sf of program.getSourceFiles()) {
   const isVue = extname(abs) === ".vue";
   const fileNodeID = relPath;
   const lineOf = (n) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+
+  const access = new Map(); // object identifier -> Set of property names (field reads)
 
   nodes.push({
     id: fileNodeID,
@@ -195,10 +198,22 @@ for (const sf of program.getSourceFiles()) {
     if (ts.isCallExpression(node)) {
       callSites.push({ from: enclosing, callee: node.expression });
     }
+    // property read `obj.prop` on a plain identifier — a field access (skip the
+    // callee of a method call, which is a call not a field read).
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) &&
+        !(node.parent && ts.isCallExpression(node.parent) && node.parent.expression === node)) {
+      const obj = node.expression.text;
+      if (!access.has(obj)) access.set(obj, new Set());
+      access.get(obj).add(node.name.text);
+    }
     ts.forEachChild(node, (c) => visit(c, enclosing));
   };
 
   ts.forEachChild(sf, (c) => visit(c, fileNodeID));
+
+  for (const [obj, props] of access) {
+    shapes.push({ object: obj, props: [...props], file: abs });
+  }
 }
 
 // Resolve each call to a declaration node we indexed, via the checker.
@@ -222,4 +237,4 @@ for (const { from, callee } of callSites) {
   }
 }
 
-process.stdout.write(JSON.stringify({ nodes, edges }));
+process.stdout.write(JSON.stringify({ nodes, edges, shapes }));

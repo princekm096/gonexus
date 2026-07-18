@@ -74,7 +74,7 @@ func ids(ns []*Node) []string {
 }
 
 func TestStem(t *testing.T) {
-	cases := map[string]string{"parsing": "pars", "parsed": "pars", "parses": "pars", "queries": "query"}
+	cases := map[string]string{"parsing": "pars", "parsed": "pars", "parses": "pars", "queries": "queri"}
 	for in, want := range cases {
 		if got := stem(in); got != want {
 			t.Errorf("stem(%q)=%q, want %q", in, got, want)

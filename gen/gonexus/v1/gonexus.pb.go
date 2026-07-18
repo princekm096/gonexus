@@ -1330,6 +1330,7 @@ type Cluster struct {
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Members       []string               `protobuf:"bytes,3,rep,name=members,proto3" json:"members,omitempty"`
+	Cohesion      float64                `protobuf:"fixed64,4,opt,name=cohesion,proto3" json:"cohesion,omitempty"` // internal/incident edge weight, 0..1
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1383,6 +1384,13 @@ func (x *Cluster) GetMembers() []string {
 		return x.Members
 	}
 	return nil
+}
+
+func (x *Cluster) GetCohesion() float64 {
+	if x != nil {
+		return x.Cohesion
+	}
+	return 0
 }
 
 type ClustersResponse struct {
@@ -2777,6 +2785,162 @@ func (x *AskResponse) GetSources() []*Node {
 	return nil
 }
 
+type ShapeCheckRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repo          string                 `protobuf:"bytes,1,opt,name=repo,proto3" json:"repo,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShapeCheckRequest) Reset() {
+	*x = ShapeCheckRequest{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShapeCheckRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShapeCheckRequest) ProtoMessage() {}
+
+func (x *ShapeCheckRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShapeCheckRequest.ProtoReflect.Descriptor instead.
+func (*ShapeCheckRequest) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *ShapeCheckRequest) GetRepo() string {
+	if x != nil {
+		return x.Repo
+	}
+	return ""
+}
+
+type ShapeFinding struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Object        string                 `protobuf:"bytes,1,opt,name=object,proto3" json:"object,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	File          string                 `protobuf:"bytes,3,opt,name=file,proto3" json:"file,omitempty"`
+	Unknown       []string               `protobuf:"bytes,4,rep,name=unknown,proto3" json:"unknown,omitempty"` // accessed props not on the provider type
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShapeFinding) Reset() {
+	*x = ShapeFinding{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShapeFinding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShapeFinding) ProtoMessage() {}
+
+func (x *ShapeFinding) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShapeFinding.ProtoReflect.Descriptor instead.
+func (*ShapeFinding) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ShapeFinding) GetObject() string {
+	if x != nil {
+		return x.Object
+	}
+	return ""
+}
+
+func (x *ShapeFinding) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *ShapeFinding) GetFile() string {
+	if x != nil {
+		return x.File
+	}
+	return ""
+}
+
+func (x *ShapeFinding) GetUnknown() []string {
+	if x != nil {
+		return x.Unknown
+	}
+	return nil
+}
+
+type ShapeCheckResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Findings      []*ShapeFinding        `protobuf:"bytes,1,rep,name=findings,proto3" json:"findings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShapeCheckResponse) Reset() {
+	*x = ShapeCheckResponse{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShapeCheckResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShapeCheckResponse) ProtoMessage() {}
+
+func (x *ShapeCheckResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShapeCheckResponse.ProtoReflect.Descriptor instead.
+func (*ShapeCheckResponse) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ShapeCheckResponse) GetFindings() []*ShapeFinding {
+	if x != nil {
+		return x.Findings
+	}
+	return nil
+}
+
 var File_gonexus_v1_gonexus_proto protoreflect.FileDescriptor
 
 const file_gonexus_v1_gonexus_proto_rawDesc = "" +
@@ -2864,11 +3028,12 @@ const file_gonexus_v1_gonexus_proto_rawDesc = "" +
 	"\x05nodes\x18\x01 \x03(\v2\x10.gonexus.v1.NodeR\x05nodes\x12&\n" +
 	"\x05edges\x18\x02 \x03(\v2\x10.gonexus.v1.EdgeR\x05edges\"%\n" +
 	"\x0fClustersRequest\x12\x12\n" +
-	"\x04repo\x18\x01 \x01(\tR\x04repo\"G\n" +
+	"\x04repo\x18\x01 \x01(\tR\x04repo\"c\n" +
 	"\aCluster\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
-	"\amembers\x18\x03 \x03(\tR\amembers\"C\n" +
+	"\amembers\x18\x03 \x03(\tR\amembers\x12\x1a\n" +
+	"\bcohesion\x18\x04 \x01(\x01R\bcohesion\"C\n" +
 	"\x10ClustersResponse\x12/\n" +
 	"\bclusters\x18\x01 \x03(\v2\x13.gonexus.v1.ClusterR\bclusters\">\n" +
 	"\x14DetectChangesRequest\x12\x12\n" +
@@ -2957,8 +3122,16 @@ const file_gonexus_v1_gonexus_proto_rawDesc = "" +
 	"\bquestion\x18\x02 \x01(\tR\bquestion\"Q\n" +
 	"\vAskResponse\x12\x16\n" +
 	"\x06answer\x18\x01 \x01(\tR\x06answer\x12*\n" +
-	"\asources\x18\x02 \x03(\v2\x10.gonexus.v1.NodeR\asources2\xfc\n" +
-	"\n" +
+	"\asources\x18\x02 \x03(\v2\x10.gonexus.v1.NodeR\asources\"'\n" +
+	"\x11ShapeCheckRequest\x12\x12\n" +
+	"\x04repo\x18\x01 \x01(\tR\x04repo\"h\n" +
+	"\fShapeFinding\x12\x16\n" +
+	"\x06object\x18\x01 \x01(\tR\x06object\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
+	"\x04file\x18\x03 \x01(\tR\x04file\x12\x18\n" +
+	"\aunknown\x18\x04 \x03(\tR\aunknown\"J\n" +
+	"\x12ShapeCheckResponse\x124\n" +
+	"\bfindings\x18\x01 \x03(\v2\x18.gonexus.v1.ShapeFindingR\bfindings2\xcb\v\n" +
 	"\x0eGoNexusService\x12>\n" +
 	"\x05Index\x12\x18.gonexus.v1.IndexRequest\x1a\x19.gonexus.v1.IndexResponse\"\x00\x12>\n" +
 	"\x05Query\x12\x18.gonexus.v1.QueryRequest\x1a\x19.gonexus.v1.QueryResponse\"\x00\x12D\n" +
@@ -2979,7 +3152,9 @@ const file_gonexus_v1_gonexus_proto_rawDesc = "" +
 	"\x06Cypher\x12\x19.gonexus.v1.CypherRequest\x1a\x1a.gonexus.v1.CypherResponse\"\x00\x12G\n" +
 	"\bRouteMap\x12\x1b.gonexus.v1.RouteMapRequest\x1a\x1c.gonexus.v1.RouteMapResponse\"\x00\x12J\n" +
 	"\tApiImpact\x12\x1c.gonexus.v1.ApiImpactRequest\x1a\x1d.gonexus.v1.ApiImpactResponse\"\x00\x128\n" +
-	"\x03Ask\x12\x16.gonexus.v1.AskRequest\x1a\x17.gonexus.v1.AskResponse\"\x00B\x9c\x01\n" +
+	"\x03Ask\x12\x16.gonexus.v1.AskRequest\x1a\x17.gonexus.v1.AskResponse\"\x00\x12M\n" +
+	"\n" +
+	"ShapeCheck\x12\x1d.gonexus.v1.ShapeCheckRequest\x1a\x1e.gonexus.v1.ShapeCheckResponse\"\x00B\x9c\x01\n" +
 	"\x0ecom.gonexus.v1B\fGonexusProtoP\x01Z3github.com/yourorg/gonexus/gen/gonexus/v1;gonexusv1\xa2\x02\x03GXX\xaa\x02\n" +
 	"Gonexus.V1\xca\x02\n" +
 	"Gonexus\\V1\xe2\x02\x16Gonexus\\V1\\GPBMetadata\xea\x02\vGonexus::V1b\x06proto3"
@@ -2996,7 +3171,7 @@ func file_gonexus_v1_gonexus_proto_rawDescGZIP() []byte {
 	return file_gonexus_v1_gonexus_proto_rawDescData
 }
 
-var file_gonexus_v1_gonexus_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_gonexus_v1_gonexus_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
 var file_gonexus_v1_gonexus_proto_goTypes = []any{
 	(*Node)(nil),                  // 0: gonexus.v1.Node
 	(*Edge)(nil),                  // 1: gonexus.v1.Edge
@@ -3049,6 +3224,9 @@ var file_gonexus_v1_gonexus_proto_goTypes = []any{
 	(*ApiImpactResponse)(nil),     // 48: gonexus.v1.ApiImpactResponse
 	(*AskRequest)(nil),            // 49: gonexus.v1.AskRequest
 	(*AskResponse)(nil),           // 50: gonexus.v1.AskResponse
+	(*ShapeCheckRequest)(nil),     // 51: gonexus.v1.ShapeCheckRequest
+	(*ShapeFinding)(nil),          // 52: gonexus.v1.ShapeFinding
+	(*ShapeCheckResponse)(nil),    // 53: gonexus.v1.ShapeCheckResponse
 }
 var file_gonexus_v1_gonexus_proto_depIdxs = []int32{
 	0,  // 0: gonexus.v1.QueryResponse.results:type_name -> gonexus.v1.Node
@@ -3074,51 +3252,54 @@ var file_gonexus_v1_gonexus_proto_depIdxs = []int32{
 	43, // 20: gonexus.v1.RouteImpact.route:type_name -> gonexus.v1.Route
 	47, // 21: gonexus.v1.ApiImpactResponse.routes:type_name -> gonexus.v1.RouteImpact
 	0,  // 22: gonexus.v1.AskResponse.sources:type_name -> gonexus.v1.Node
-	2,  // 23: gonexus.v1.GoNexusService.Index:input_type -> gonexus.v1.IndexRequest
-	4,  // 24: gonexus.v1.GoNexusService.Query:input_type -> gonexus.v1.QueryRequest
-	6,  // 25: gonexus.v1.GoNexusService.Context:input_type -> gonexus.v1.ContextRequest
-	8,  // 26: gonexus.v1.GoNexusService.Impact:input_type -> gonexus.v1.ImpactRequest
-	11, // 27: gonexus.v1.GoNexusService.Trace:input_type -> gonexus.v1.TraceRequest
-	13, // 28: gonexus.v1.GoNexusService.Subgraph:input_type -> gonexus.v1.SubgraphRequest
-	15, // 29: gonexus.v1.GoNexusService.Repos:input_type -> gonexus.v1.ReposRequest
-	18, // 30: gonexus.v1.GoNexusService.EntryPoints:input_type -> gonexus.v1.EntryPointsRequest
-	21, // 31: gonexus.v1.GoNexusService.Process:input_type -> gonexus.v1.ProcessRequest
-	23, // 32: gonexus.v1.GoNexusService.Clusters:input_type -> gonexus.v1.ClustersRequest
-	26, // 33: gonexus.v1.GoNexusService.DetectChanges:input_type -> gonexus.v1.DetectChangesRequest
-	28, // 34: gonexus.v1.GoNexusService.Rename:input_type -> gonexus.v1.RenameRequest
-	31, // 35: gonexus.v1.GoNexusService.Wiki:input_type -> gonexus.v1.WikiRequest
-	33, // 36: gonexus.v1.GoNexusService.Explain:input_type -> gonexus.v1.ExplainRequest
-	36, // 37: gonexus.v1.GoNexusService.PdgQuery:input_type -> gonexus.v1.PdgQueryRequest
-	39, // 38: gonexus.v1.GoNexusService.Check:input_type -> gonexus.v1.CheckRequest
-	41, // 39: gonexus.v1.GoNexusService.Cypher:input_type -> gonexus.v1.CypherRequest
-	44, // 40: gonexus.v1.GoNexusService.RouteMap:input_type -> gonexus.v1.RouteMapRequest
-	46, // 41: gonexus.v1.GoNexusService.ApiImpact:input_type -> gonexus.v1.ApiImpactRequest
-	49, // 42: gonexus.v1.GoNexusService.Ask:input_type -> gonexus.v1.AskRequest
-	3,  // 43: gonexus.v1.GoNexusService.Index:output_type -> gonexus.v1.IndexResponse
-	5,  // 44: gonexus.v1.GoNexusService.Query:output_type -> gonexus.v1.QueryResponse
-	7,  // 45: gonexus.v1.GoNexusService.Context:output_type -> gonexus.v1.ContextResponse
-	10, // 46: gonexus.v1.GoNexusService.Impact:output_type -> gonexus.v1.ImpactResponse
-	12, // 47: gonexus.v1.GoNexusService.Trace:output_type -> gonexus.v1.TraceResponse
-	14, // 48: gonexus.v1.GoNexusService.Subgraph:output_type -> gonexus.v1.SubgraphResponse
-	17, // 49: gonexus.v1.GoNexusService.Repos:output_type -> gonexus.v1.ReposResponse
-	20, // 50: gonexus.v1.GoNexusService.EntryPoints:output_type -> gonexus.v1.EntryPointsResponse
-	22, // 51: gonexus.v1.GoNexusService.Process:output_type -> gonexus.v1.ProcessResponse
-	25, // 52: gonexus.v1.GoNexusService.Clusters:output_type -> gonexus.v1.ClustersResponse
-	27, // 53: gonexus.v1.GoNexusService.DetectChanges:output_type -> gonexus.v1.DetectChangesResponse
-	30, // 54: gonexus.v1.GoNexusService.Rename:output_type -> gonexus.v1.RenameResponse
-	32, // 55: gonexus.v1.GoNexusService.Wiki:output_type -> gonexus.v1.WikiResponse
-	35, // 56: gonexus.v1.GoNexusService.Explain:output_type -> gonexus.v1.ExplainResponse
-	38, // 57: gonexus.v1.GoNexusService.PdgQuery:output_type -> gonexus.v1.PdgQueryResponse
-	40, // 58: gonexus.v1.GoNexusService.Check:output_type -> gonexus.v1.CheckResponse
-	42, // 59: gonexus.v1.GoNexusService.Cypher:output_type -> gonexus.v1.CypherResponse
-	45, // 60: gonexus.v1.GoNexusService.RouteMap:output_type -> gonexus.v1.RouteMapResponse
-	48, // 61: gonexus.v1.GoNexusService.ApiImpact:output_type -> gonexus.v1.ApiImpactResponse
-	50, // 62: gonexus.v1.GoNexusService.Ask:output_type -> gonexus.v1.AskResponse
-	43, // [43:63] is the sub-list for method output_type
-	23, // [23:43] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	52, // 23: gonexus.v1.ShapeCheckResponse.findings:type_name -> gonexus.v1.ShapeFinding
+	2,  // 24: gonexus.v1.GoNexusService.Index:input_type -> gonexus.v1.IndexRequest
+	4,  // 25: gonexus.v1.GoNexusService.Query:input_type -> gonexus.v1.QueryRequest
+	6,  // 26: gonexus.v1.GoNexusService.Context:input_type -> gonexus.v1.ContextRequest
+	8,  // 27: gonexus.v1.GoNexusService.Impact:input_type -> gonexus.v1.ImpactRequest
+	11, // 28: gonexus.v1.GoNexusService.Trace:input_type -> gonexus.v1.TraceRequest
+	13, // 29: gonexus.v1.GoNexusService.Subgraph:input_type -> gonexus.v1.SubgraphRequest
+	15, // 30: gonexus.v1.GoNexusService.Repos:input_type -> gonexus.v1.ReposRequest
+	18, // 31: gonexus.v1.GoNexusService.EntryPoints:input_type -> gonexus.v1.EntryPointsRequest
+	21, // 32: gonexus.v1.GoNexusService.Process:input_type -> gonexus.v1.ProcessRequest
+	23, // 33: gonexus.v1.GoNexusService.Clusters:input_type -> gonexus.v1.ClustersRequest
+	26, // 34: gonexus.v1.GoNexusService.DetectChanges:input_type -> gonexus.v1.DetectChangesRequest
+	28, // 35: gonexus.v1.GoNexusService.Rename:input_type -> gonexus.v1.RenameRequest
+	31, // 36: gonexus.v1.GoNexusService.Wiki:input_type -> gonexus.v1.WikiRequest
+	33, // 37: gonexus.v1.GoNexusService.Explain:input_type -> gonexus.v1.ExplainRequest
+	36, // 38: gonexus.v1.GoNexusService.PdgQuery:input_type -> gonexus.v1.PdgQueryRequest
+	39, // 39: gonexus.v1.GoNexusService.Check:input_type -> gonexus.v1.CheckRequest
+	41, // 40: gonexus.v1.GoNexusService.Cypher:input_type -> gonexus.v1.CypherRequest
+	44, // 41: gonexus.v1.GoNexusService.RouteMap:input_type -> gonexus.v1.RouteMapRequest
+	46, // 42: gonexus.v1.GoNexusService.ApiImpact:input_type -> gonexus.v1.ApiImpactRequest
+	49, // 43: gonexus.v1.GoNexusService.Ask:input_type -> gonexus.v1.AskRequest
+	51, // 44: gonexus.v1.GoNexusService.ShapeCheck:input_type -> gonexus.v1.ShapeCheckRequest
+	3,  // 45: gonexus.v1.GoNexusService.Index:output_type -> gonexus.v1.IndexResponse
+	5,  // 46: gonexus.v1.GoNexusService.Query:output_type -> gonexus.v1.QueryResponse
+	7,  // 47: gonexus.v1.GoNexusService.Context:output_type -> gonexus.v1.ContextResponse
+	10, // 48: gonexus.v1.GoNexusService.Impact:output_type -> gonexus.v1.ImpactResponse
+	12, // 49: gonexus.v1.GoNexusService.Trace:output_type -> gonexus.v1.TraceResponse
+	14, // 50: gonexus.v1.GoNexusService.Subgraph:output_type -> gonexus.v1.SubgraphResponse
+	17, // 51: gonexus.v1.GoNexusService.Repos:output_type -> gonexus.v1.ReposResponse
+	20, // 52: gonexus.v1.GoNexusService.EntryPoints:output_type -> gonexus.v1.EntryPointsResponse
+	22, // 53: gonexus.v1.GoNexusService.Process:output_type -> gonexus.v1.ProcessResponse
+	25, // 54: gonexus.v1.GoNexusService.Clusters:output_type -> gonexus.v1.ClustersResponse
+	27, // 55: gonexus.v1.GoNexusService.DetectChanges:output_type -> gonexus.v1.DetectChangesResponse
+	30, // 56: gonexus.v1.GoNexusService.Rename:output_type -> gonexus.v1.RenameResponse
+	32, // 57: gonexus.v1.GoNexusService.Wiki:output_type -> gonexus.v1.WikiResponse
+	35, // 58: gonexus.v1.GoNexusService.Explain:output_type -> gonexus.v1.ExplainResponse
+	38, // 59: gonexus.v1.GoNexusService.PdgQuery:output_type -> gonexus.v1.PdgQueryResponse
+	40, // 60: gonexus.v1.GoNexusService.Check:output_type -> gonexus.v1.CheckResponse
+	42, // 61: gonexus.v1.GoNexusService.Cypher:output_type -> gonexus.v1.CypherResponse
+	45, // 62: gonexus.v1.GoNexusService.RouteMap:output_type -> gonexus.v1.RouteMapResponse
+	48, // 63: gonexus.v1.GoNexusService.ApiImpact:output_type -> gonexus.v1.ApiImpactResponse
+	50, // 64: gonexus.v1.GoNexusService.Ask:output_type -> gonexus.v1.AskResponse
+	53, // 65: gonexus.v1.GoNexusService.ShapeCheck:output_type -> gonexus.v1.ShapeCheckResponse
+	45, // [45:66] is the sub-list for method output_type
+	24, // [24:45] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_gonexus_v1_gonexus_proto_init() }
@@ -3132,7 +3313,7 @@ func file_gonexus_v1_gonexus_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gonexus_v1_gonexus_proto_rawDesc), len(file_gonexus_v1_gonexus_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   51,
+			NumMessages:   54,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -25,6 +25,11 @@ type tsPayload struct {
 		To   string `json:"to"`
 		Kind string `json:"kind"`
 	} `json:"edges"`
+	Shapes []struct {
+		Object string   `json:"object"`
+		Props  []string `json:"props"`
+		File   string   `json:"file"`
+	} `json:"shapes"`
 }
 
 // extractorPath finds the Node extractor script. Override with
@@ -62,6 +67,9 @@ func BuildTS(dir string) (*graph.Graph, error) {
 	}
 	for _, e := range p.Edges {
 		g.AddEdge(graph.Edge{From: e.From, To: e.To, Kind: graph.EdgeKind(e.Kind)})
+	}
+	for _, s := range p.Shapes {
+		g.AddShape(graph.AccessShape{Object: s.Object, Props: s.Props, File: s.File})
 	}
 	return g, nil
 }

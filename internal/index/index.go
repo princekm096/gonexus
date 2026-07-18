@@ -13,6 +13,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"reflect"
 	"strings"
 
 	"github.com/yourorg/gonexus/internal/graph"
@@ -268,6 +269,7 @@ func indexGenDecl(g *graph.Graph, pkg *packages.Package, fset *token.FileSet, d 
 			File: pos.Filename, Line: pos.Line,
 			Signature: types.ObjectString(obj, qualifier(pkg)),
 			Doc:       docText(d.Doc),
+			Fields:    structFields(obj.Type()),
 		})
 		g.AddEdge(graph.Edge{From: pkg.PkgPath, To: id, Kind: graph.EdgeDefines})
 		// implements edges are added in addImplementsEdges after all packages
@@ -282,6 +284,35 @@ func qualifier(pkg *packages.Package) types.Qualifier {
 		}
 		return other.Name()
 	}
+}
+
+// structFields returns the wire field names of a struct type (JSON tag name if
+// present, else the field name); nil for non-structs. Only exported fields
+// appear on the wire.
+func structFields(t types.Type) []string {
+	st, ok := t.Underlying().(*types.Struct)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for i := 0; i < st.NumFields(); i++ {
+		f := st.Field(i)
+		if !f.Exported() {
+			continue
+		}
+		name := f.Name()
+		if tag := reflect.StructTag(st.Tag(i)).Get("json"); tag != "" {
+			j := strings.Split(tag, ",")[0]
+			if j == "-" {
+				continue // not serialized
+			}
+			if j != "" {
+				name = j
+			}
+		}
+		out = append(out, name)
+	}
+	return out
 }
 
 func docText(g *ast.CommentGroup) string {

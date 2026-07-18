@@ -10,13 +10,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/yourorg/gonexus/gen/gonexus/v1/gonexusv1connect"
+	"github.com/yourorg/gonexus/internal/changes"
 	"github.com/yourorg/gonexus/internal/groups"
 	"github.com/yourorg/gonexus/internal/index"
 	"github.com/yourorg/gonexus/internal/llm"
@@ -31,7 +35,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("usage: gonexus [setup | index <path> [name] | list | status | remove <name> | clean <name> | group ... | skills [repo] | hooks | wiki [repo] | serve [addr] | mcp | doctor | uninstall]")
+		fmt.Println("usage: gonexus [setup | index | list | status | remove | clean | query | context | impact | trace | cypher | check | detect-changes | group ... | skills | hooks | enrich | wiki | serve | mcp | doctor | uninstall]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -68,6 +72,8 @@ func main() {
 			addr = os.Args[2]
 		}
 		cmdServe(addr)
+	case "query", "context", "impact", "trace", "cypher", "check", "detect-changes", "shape-check":
+		cmdQueryVerb(os.Args[1], os.Args[2:])
 	case "group":
 		cmdGroup(os.Args[2:])
 	case "skills":
@@ -78,6 +84,8 @@ func main() {
 		cmdSkills(repo)
 	case "hooks":
 		cmdHooks()
+	case "enrich":
+		cmdEnrich()
 	case "setup":
 		cmdSetup()
 	case "clean":
@@ -139,6 +147,58 @@ func cmdStatus() {
 			state = "STALE"
 		}
 		fmt.Printf("%-20s %-6s %s\n", n, state, f.Repos[n].Path)
+	}
+}
+
+// cmdQueryVerb runs a read-only graph query from the CLI:
+//
+//	gonexus query <repo> <text>
+//	gonexus context|impact|check <repo> <id>
+//	gonexus trace <repo> <fromID> <toID>
+//	gonexus cypher <repo> <pattern>
+//	gonexus detect-changes <repo> [base]
+func cmdQueryVerb(verb string, args []string) {
+	if len(args) < 1 {
+		log.Fatalf("usage: gonexus %s <repo> ...", verb)
+	}
+	g, _, err := registry.NewStore().Graph(args[0])
+	fatalIf(err)
+	rest := args[1:]
+	out := func(v any) { b, _ := json.MarshalIndent(v, "", "  "); fmt.Println(string(b)) }
+
+	switch verb {
+	case "query":
+		must(len(rest) >= 1, "usage: gonexus query <repo> <text>")
+		out(g.Search(strings.Join(rest, " "), 20))
+	case "context":
+		must(len(rest) >= 1, "usage: gonexus context <repo> <id>")
+		n, in, o := g.Context(rest[0])
+		out(map[string]any{"node": n, "incoming": in, "outgoing": o})
+	case "impact":
+		must(len(rest) >= 1, "usage: gonexus impact <repo> <id>")
+		out(g.ImpactGraded(rest[0]))
+	case "trace":
+		must(len(rest) >= 2, "usage: gonexus trace <repo> <fromID> <toID>")
+		out(g.Trace(rest[0], rest[1]))
+	case "cypher":
+		must(len(rest) >= 1, "usage: gonexus cypher <repo> <pattern>")
+		edges, err := g.Cypher(strings.Join(rest, " "), 100)
+		fatalIf(err)
+		out(edges)
+	case "check":
+		out(func() any { m, d := g.Check(rest); return map[string]any{"missing": m, "dangling": d} }())
+	case "shape-check":
+		out(g.ShapeCheck())
+	case "detect-changes":
+		base := ""
+		if len(rest) > 0 {
+			base = rest[0]
+		}
+		r, err := registry.NewStore().Repo(args[0])
+		fatalIf(err)
+		res, err := changes.Detect(g, r.Path, base)
+		fatalIf(err)
+		out(res)
 	}
 }
 
@@ -270,27 +330,77 @@ func cmdSkills(repo string) {
 	fmt.Printf("wrote %d skills to %s\n", len(files), outDir)
 }
 
-// cmdHooks prints a Claude Code hooks snippet: PreToolUse enriches with GoNexus
-// context, PostToolUse warns when the index is stale.
+// cmdHooks prints a Claude Code hooks snippet: PreToolUse enriches the edit with
+// GoNexus blast-radius context, PostToolUse warns when the index is stale.
 func cmdHooks() {
 	fmt.Print(`Add to your Claude Code settings.json (hooks):
 
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [ { "type": "command", "command": "gonexus enrich" } ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "hooks": [
-          { "type": "command", "command": "gonexus status | grep -q STALE && echo 'GoNexus index is stale; run: gonexus index <repo>' || true" }
-        ]
+        "hooks": [ { "type": "command", "command": "gonexus status | grep -q STALE && echo 'GoNexus index is stale; run: gonexus index <repo>' || true" } ]
       }
     ]
   }
 }
 
-The PostToolUse hook warns after edits when a repo's index no longer matches its
-source. Re-run 'gonexus index <path>' (or the reindex MCP tool) to refresh.
+PreToolUse 'enrich' reads the pending edit and injects the impacted symbols
+(blast radius) as context before the edit runs. PostToolUse warns when the
+index is stale afterward.
 `)
+}
+
+// cmdEnrich is the PreToolUse hook body: it reads the hook JSON on stdin, finds
+// the symbols in the file being edited, and prints their blast radius as context.
+func cmdEnrich() {
+	var in struct {
+		ToolInput struct {
+			FilePath string `json:"file_path"`
+		} `json:"tool_input"`
+	}
+	if json.NewDecoder(os.Stdin).Decode(&in) != nil || in.ToolInput.FilePath == "" {
+		return // not an edit we can enrich; stay silent
+	}
+	abs, err := filepath.Abs(in.ToolInput.FilePath)
+	if err != nil {
+		return
+	}
+	f, err := registry.Load()
+	if err != nil {
+		return
+	}
+	// find the registered repo containing the file.
+	var repoName string
+	for _, name := range f.Names() {
+		if strings.HasPrefix(abs, f.Repos[name].Path+"/") {
+			repoName = name
+			break
+		}
+	}
+	if repoName == "" {
+		return
+	}
+	g, _, err := registry.NewStore().Graph(repoName)
+	if err != nil {
+		return
+	}
+	for id, n := range g.Nodes {
+		if n.File != abs {
+			continue
+		}
+		if callers := g.Impact(id); len(callers) > 0 {
+			fmt.Printf("GoNexus: editing %s (%s:%d) — %d symbols depend on it (blast radius). Review before changing its behavior.\n",
+				n.Name, n.Kind, n.Line, len(callers))
+		}
+	}
 }
 
 func cmdWiki(repo string) {

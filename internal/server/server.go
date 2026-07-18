@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -314,24 +315,135 @@ func (s *Server) Ask(ctx context.Context, req *connect.Request[v1.AskRequest]) (
 	if err != nil {
 		return nil, err
 	}
-	nodes := g.Search(req.Msg.Question, 8)
-	var ctxText strings.Builder
-	for _, n := range nodes {
-		fmt.Fprintf(&ctxText, "- %s (%s) %s\n  %s\n", n.Name, n.Kind, n.Signature, n.Doc)
+	if s.llm == nil {
+		// No LLM: return the most relevant symbols as the answer.
+		nodes := g.Search(req.Msg.Question, 8)
+		var b strings.Builder
+		b.WriteString("No LLM configured (set GONEXUS_LLM_URL). Most relevant symbols:\n")
+		for _, n := range nodes {
+			fmt.Fprintf(&b, "- %s (%s) %s\n", n.Name, n.Kind, n.Signature)
+		}
+		return connect.NewResponse(&v1.AskResponse{Answer: b.String(), Sources: toNodes(nodes)}), nil
 	}
-	answer := ""
-	if s.llm != nil {
-		sys := "You are a code assistant. Answer the question using only the provided code context. " +
-			"Cite symbol names. If the context is insufficient, say so."
-		a, err := s.llm.Complete(ctx, sys, "Question: "+req.Msg.Question+"\n\nRelevant code:\n"+ctxText.String())
-		if err == nil {
-			answer = a
+	answer, sources := s.reactAgent(ctx, g, req.Msg.Question)
+	return connect.NewResponse(&v1.AskResponse{Answer: answer, Sources: toNodes(sources)}), nil
+}
+
+const reactSystem = `You are a code-analysis agent working over a code knowledge graph.
+Available tools:
+- query(text): search for symbols
+- context(id): a symbol's signature, callers and callees
+- impact(id): transitive callers (blast radius)
+- trace(input): shortest call path; input is "fromID||toID"
+- entrypoints(): execution-flow roots
+Reply with EXACTLY one JSON object per turn and nothing else:
+{"action":"<tool>","input":"<arg>"} to call a tool, or
+{"final":"<answer>"} when you can answer.
+Base your answer only on tool observations. Cite symbol ids.`
+
+// reactAgent runs a bounded ReAct loop: the LLM chooses graph tools, the server
+// executes them and feeds back observations, until the LLM returns a final
+// answer or the step budget is exhausted.
+func (s *Server) reactAgent(ctx context.Context, g *graph.Graph, question string) (string, []*graph.Node) {
+	const maxSteps = 6
+	transcript := "Question: " + question
+	var sources []*graph.Node
+	seen := map[string]bool{}
+	addSrc := func(ns []*graph.Node) {
+		for _, n := range ns {
+			if !seen[n.ID] {
+				seen[n.ID] = true
+				sources = append(sources, n)
+			}
 		}
 	}
-	if answer == "" {
-		answer = "No LLM configured (set GONEXUS_LLM_URL). Most relevant symbols:\n" + ctxText.String()
+
+	for step := 0; step < maxSteps; step++ {
+		resp, err := s.llm.Complete(ctx, reactSystem, transcript)
+		if err != nil {
+			return "LLM error: " + err.Error(), sources
+		}
+		act := parseAction(resp)
+		if act.Final != "" || act.Action == "" {
+			if act.Final != "" {
+				return act.Final, sources
+			}
+			return resp, sources // model answered in prose
+		}
+		obs := runAction(g, act, addSrc)
+		transcript += fmt.Sprintf("\nAction: %s(%s)\nObservation: %s", act.Action, act.Input, obs)
 	}
-	return connect.NewResponse(&v1.AskResponse{Answer: answer, Sources: toNodes(nodes)}), nil
+	// budget exhausted: ask for a final answer with what we have.
+	final, _ := s.llm.Complete(ctx, reactSystem+"\nYou are out of steps; give {\"final\":...} now.", transcript)
+	if a := parseAction(final); a.Final != "" {
+		return a.Final, sources
+	}
+	return final, sources
+}
+
+type reactAct struct {
+	Action string `json:"action"`
+	Input  string `json:"input"`
+	Final  string `json:"final"`
+}
+
+// parseAction extracts the first {...} JSON object from an LLM reply.
+func parseAction(s string) reactAct {
+	i, j := strings.IndexByte(s, '{'), strings.LastIndexByte(s, '}')
+	var a reactAct
+	if i >= 0 && j > i {
+		_ = json.Unmarshal([]byte(s[i:j+1]), &a)
+	}
+	return a
+}
+
+func runAction(g *graph.Graph, a reactAct, addSrc func([]*graph.Node)) string {
+	switch a.Action {
+	case "query":
+		nodes := g.Search(a.Input, 8)
+		addSrc(nodes)
+		var b strings.Builder
+		for _, n := range nodes {
+			fmt.Fprintf(&b, "%s [%s] %s; ", n.ID, n.Kind, n.Signature)
+		}
+		return b.String()
+	case "context":
+		n, in, out := g.Context(a.Input)
+		if n == nil {
+			return "not found"
+		}
+		addSrc([]*graph.Node{n})
+		return fmt.Sprintf("%s %s; %d callers, %d callees", n.Name, n.Signature, len(in), len(out))
+	case "impact":
+		ids := g.Impact(a.Input)
+		return fmt.Sprintf("%d transitive callers: %s", len(ids), strings.Join(ids, ", "))
+	case "trace":
+		parts := strings.SplitN(a.Input, "||", 2)
+		if len(parts) != 2 {
+			return "trace needs input 'fromID||toID'"
+		}
+		return "path: " + strings.Join(g.Trace(parts[0], parts[1]), " -> ")
+	case "entrypoints":
+		var names []string
+		for _, n := range g.EntryPoints() {
+			names = append(names, n.ID)
+		}
+		return "entry points: " + strings.Join(names, ", ")
+	default:
+		return "unknown tool " + a.Action
+	}
+}
+
+func (s *Server) ShapeCheck(ctx context.Context, req *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*v1.ShapeFinding, 0)
+	for _, f := range g.ShapeCheck() {
+		out = append(out, &v1.ShapeFinding{Object: f.Object, Type: f.Type, File: f.File, Unknown: f.Unknown})
+	}
+	return connect.NewResponse(&v1.ShapeCheckResponse{Findings: out}), nil
 }
 
 func (s *Server) Clusters(ctx context.Context, req *connect.Request[v1.ClustersRequest]) (*connect.Response[v1.ClustersResponse], error) {
@@ -342,7 +454,7 @@ func (s *Server) Clusters(ctx context.Context, req *connect.Request[v1.ClustersR
 	coms := g.Communities()
 	out := make([]*v1.Cluster, 0, len(coms))
 	for _, c := range coms {
-		out = append(out, &v1.Cluster{Id: c.ID, Name: c.Name, Members: c.Members})
+		out = append(out, &v1.Cluster{Id: c.ID, Name: c.Name, Members: c.Members, Cohesion: c.Cohesion})
 	}
 	return connect.NewResponse(&v1.ClustersResponse{Clusters: out}), nil
 }

@@ -76,6 +76,9 @@ const (
 	GoNexusServiceApiImpactProcedure = "/gonexus.v1.GoNexusService/ApiImpact"
 	// GoNexusServiceAskProcedure is the fully-qualified name of the GoNexusService's Ask RPC.
 	GoNexusServiceAskProcedure = "/gonexus.v1.GoNexusService/Ask"
+	// GoNexusServiceShapeCheckProcedure is the fully-qualified name of the GoNexusService's ShapeCheck
+	// RPC.
+	GoNexusServiceShapeCheckProcedure = "/gonexus.v1.GoNexusService/ShapeCheck"
 )
 
 // GoNexusServiceClient is a client for the gonexus.v1.GoNexusService service.
@@ -120,6 +123,8 @@ type GoNexusServiceClient interface {
 	ApiImpact(context.Context, *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error)
 	// Ask answers a natural-language question about a repo (RAG over the graph).
 	Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error)
+	// ShapeCheck validates consumer property access against provider type shapes.
+	ShapeCheck(context.Context, *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error)
 }
 
 // NewGoNexusServiceClient constructs a client for the gonexus.v1.GoNexusService service. By
@@ -253,6 +258,12 @@ func NewGoNexusServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(goNexusServiceMethods.ByName("Ask")),
 			connect.WithClientOptions(opts...),
 		),
+		shapeCheck: connect.NewClient[v1.ShapeCheckRequest, v1.ShapeCheckResponse](
+			httpClient,
+			baseURL+GoNexusServiceShapeCheckProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("ShapeCheck")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -278,6 +289,7 @@ type goNexusServiceClient struct {
 	routeMap      *connect.Client[v1.RouteMapRequest, v1.RouteMapResponse]
 	apiImpact     *connect.Client[v1.ApiImpactRequest, v1.ApiImpactResponse]
 	ask           *connect.Client[v1.AskRequest, v1.AskResponse]
+	shapeCheck    *connect.Client[v1.ShapeCheckRequest, v1.ShapeCheckResponse]
 }
 
 // Index calls gonexus.v1.GoNexusService.Index.
@@ -380,6 +392,11 @@ func (c *goNexusServiceClient) Ask(ctx context.Context, req *connect.Request[v1.
 	return c.ask.CallUnary(ctx, req)
 }
 
+// ShapeCheck calls gonexus.v1.GoNexusService.ShapeCheck.
+func (c *goNexusServiceClient) ShapeCheck(ctx context.Context, req *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error) {
+	return c.shapeCheck.CallUnary(ctx, req)
+}
+
 // GoNexusServiceHandler is an implementation of the gonexus.v1.GoNexusService service.
 type GoNexusServiceHandler interface {
 	// Index parses a repo into the graph and persists it.
@@ -422,6 +439,8 @@ type GoNexusServiceHandler interface {
 	ApiImpact(context.Context, *connect.Request[v1.ApiImpactRequest]) (*connect.Response[v1.ApiImpactResponse], error)
 	// Ask answers a natural-language question about a repo (RAG over the graph).
 	Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error)
+	// ShapeCheck validates consumer property access against provider type shapes.
+	ShapeCheck(context.Context, *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error)
 }
 
 // NewGoNexusServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -551,6 +570,12 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 		connect.WithSchema(goNexusServiceMethods.ByName("Ask")),
 		connect.WithHandlerOptions(opts...),
 	)
+	goNexusServiceShapeCheckHandler := connect.NewUnaryHandler(
+		GoNexusServiceShapeCheckProcedure,
+		svc.ShapeCheck,
+		connect.WithSchema(goNexusServiceMethods.ByName("ShapeCheck")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/gonexus.v1.GoNexusService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GoNexusServiceIndexProcedure:
@@ -593,6 +618,8 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 			goNexusServiceApiImpactHandler.ServeHTTP(w, r)
 		case GoNexusServiceAskProcedure:
 			goNexusServiceAskHandler.ServeHTTP(w, r)
+		case GoNexusServiceShapeCheckProcedure:
+			goNexusServiceShapeCheckHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -680,4 +707,8 @@ func (UnimplementedGoNexusServiceHandler) ApiImpact(context.Context, *connect.Re
 
 func (UnimplementedGoNexusServiceHandler) Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Ask is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) ShapeCheck(context.Context, *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.ShapeCheck is not implemented"))
 }

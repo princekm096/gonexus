@@ -35,6 +35,7 @@ func FromEnv() Embedder {
 		url:    url,
 		model:  os.Getenv("GONEXUS_EMBED_MODEL"),
 		key:    os.Getenv("GONEXUS_EMBED_KEY"),
+		device: os.Getenv("GONEXUS_EMBED_DEVICE"), // cpu|cuda|mps|... (provider-specific)
 		client: &http.Client{Timeout: 60 * time.Second},
 		batch:  100,
 	}
@@ -44,13 +45,15 @@ type httpEmbedder struct {
 	url    string
 	model  string
 	key    string
+	device string
 	client *http.Client
 	batch  int
 }
 
 type embedReq struct {
-	Model string   `json:"model"`
-	Input []string `json:"input"`
+	Model  string   `json:"model"`
+	Input  []string `json:"input"`
+	Device string   `json:"device,omitempty"` // passthrough for providers that honor it
 }
 
 type embedResp struct {
@@ -76,7 +79,7 @@ func (e *httpEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, 
 }
 
 func (e *httpEmbedder) embedChunk(ctx context.Context, texts []string) ([][]float32, error) {
-	body, err := json.Marshal(embedReq{Model: e.model, Input: texts})
+	body, err := json.Marshal(embedReq{Model: e.model, Input: texts, Device: e.device})
 	if err != nil {
 		return nil, err
 	}

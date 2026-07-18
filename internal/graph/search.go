@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	porterstemmer "github.com/reiver/go-porterstemmer"
 )
 
 // Hybrid search: BM25 lexical ranking (always) fused with semantic cosine
@@ -164,22 +166,22 @@ func tokenize(s string) []string {
 	return out
 }
 
-// stem is a light suffix stripper (a Porter-lite, not the full algorithm) so
-// "parse"/"parsing"/"parsed"/"parses" share a token.
-// ponytail: naive ordered-suffix stripping; swap for a real Porter2 stemmer if
-// recall quality matters.
-var stemSuffixes = []string{"ies", "ions", "ion", "ing", "ers", "er", "ed", "es", "ly", "s"}
-
+// stem applies the Porter stemming algorithm so "parse"/"parsing"/"parsed"/
+// "parses" share a token. Short/numeric tokens are left as-is.
 func stem(w string) string {
-	for _, suf := range stemSuffixes {
-		if len(w) > len(suf)+2 && strings.HasSuffix(w, suf) {
-			if suf == "ies" {
-				return w[:len(w)-3] + "y"
-			}
-			return w[:len(w)-len(suf)]
+	if len(w) < 4 || !allLetters(w) {
+		return w
+	}
+	return porterstemmer.StemString(w)
+}
+
+func allLetters(w string) bool {
+	for _, r := range w {
+		if !unicode.IsLetter(r) {
+			return false
 		}
 	}
-	return w
+	return true
 }
 
 func splitCamel(s string) []string {

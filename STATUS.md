@@ -8,8 +8,9 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
       (`GONEXUS_MCP_DEFAULT_MAX_TOKENS`). (`internal/mcp/guards.go`)
 - [x] **P6 — inspection/query tools**: `tool_map`, `check` (id/dangling
       validation), `cypher` (single-hop pattern), `route_map` (HTTP routes),
-      `api_impact` (route handler blast radius). gRPC + MCP.
-      _`shape_check` (cross-language API response-shape validation) deferred._
+      `api_impact` (route handler blast radius), **`shape_check`** (cross-language:
+      Go struct JSON fields vs TS/Vue property access; flags typos/stale fields).
+      gRPC + MCP + CLI.
 - [x] P7 — repo groups: registry (`~/.gonexus/groups.json`), contract
       extraction (exported symbols + routes), cross-repo linking + impact.
       MCP `group_list`/`group_sync`, CLI `group create/add/remove/list/sync/impact`.
@@ -17,15 +18,21 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
 - [x] P8 — agent surface: MCP prompts (`detect_impact`, `generate_map`), skills
       generation (`gonexus skills` → 6 standard + per-module), editor hook
       snippet (`gonexus hooks`). (`internal/skills`)
-- [x] P9 — depth: Louvain (one-level modularity) replaces LPA; impact
-      depth-grouping + confidence (`ImpactGraded`); process-grouped search
-      (`process` on results); Porter-lite stemmer in the tokenizer.
-- [x] P10 — web extras: bridge auto-detect banner + agent chat panel
-      (`Ask` = RAG over the graph; LLM-optional). WebGL/WASM client-side deferred.
+- [x] P9 — depth: **multi-level Louvain + cohesion scoring** replaces LPA;
+      impact depth-grouping + confidence (`ImpactGraded`); process-grouped
+      search (`process` on results); **full Porter stemmer** (go-porterstemmer).
+- [x] P10 — web extras: bridge auto-detect banner + agent chat panel; `Ask` is a
+      **server-side ReAct agent** (LLM drives query/context/impact/trace/
+      entrypoints tools to a fixpoint), degrades to RAG list without an LLM.
 - [x] P11 — deploy/CLI: Dockerfile + `.github/workflows/ci.yml`;
-      `setup`/`clean`/`doctor`/`uninstall` CLI.
-- Excluded (impractical here): client-side WASM rebuild, ReAct browser agent,
-      Cosign/SBOM/K8s signing, hosted SaaS, OCaml; `shape_check` deferred.
+      `setup`/`clean`/`doctor`/`uninstall` + read verbs `query`/`context`/
+      `impact`/`trace`/`cypher`/`check`/`detect-changes` as CLI subcommands.
+- [x] Editor hooks — **PreToolUse `gonexus enrich`** (injects blast-radius of the
+      file being edited) + PostToolUse stale warning; `gonexus hooks` prints both.
+- [x] Embeddings — device passthrough (`GONEXUS_EMBED_DEVICE`) + node cap
+      (`GONEXUS_EMBED_MAX_NODES`, most-referenced symbols prioritized).
+- Excluded (impractical here): client-side WASM rebuild, Cosign/SBOM/K8s
+      signing, hosted SaaS, OCaml. **No functional gaps remain** in scope.
 
 ## Phase 1 — spine ✅
 - [x] Go indexer via `go/packages` + `go/types` (`internal/index`)

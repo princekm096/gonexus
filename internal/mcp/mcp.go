@@ -268,6 +268,19 @@ type apiImpactOut struct {
 	Routes []routeImpactOut `json:"routes"`
 }
 
+type shapeCheckIn struct {
+	Repo string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
+}
+type shapeFindingOut struct {
+	Object  string   `json:"object"`
+	Type    string   `json:"type"`
+	File    string   `json:"file"`
+	Unknown []string `json:"unknown"`
+}
+type shapeCheckOut struct {
+	Findings []shapeFindingOut `json:"findings" jsonschema:"accessed properties not present on the matched provider type"`
+}
+
 type explainIn struct {
 	ID   string `json:"id,omitempty" jsonschema:"optional function id to filter to"`
 	Repo string `json:"repo,omitempty" jsonschema:"repository name; omit if only one repo is indexed"`
@@ -294,9 +307,10 @@ type pdgOut struct {
 	Params    []string `json:"params"`
 }
 type clusterOut struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Members []string `json:"members"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Members  []string `json:"members"`
+	Cohesion float64  `json:"cohesion"`
 }
 type clustersOut struct {
 	Clusters []clusterOut `json:"clusters"`
@@ -393,6 +407,11 @@ func (st *store) register(srv *mcp.Server) {
 		Name:        "api_impact",
 		Description: "Blast radius of the handler(s) behind an HTTP route — what a route change affects.",
 	}, st.apiImpact)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "shape_check",
+		Description: "Validate consumer property access (TS/Vue) against provider type shapes (Go struct JSON fields). Flags accessed properties that don't exist on the matched type — likely typos or stale fields.",
+	}, st.shapeCheck)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "explain",
@@ -551,6 +570,18 @@ func (st *store) apiImpact(_ context.Context, _ *mcp.CallToolRequest, in apiImpa
 			Route:    routeOut{Method: r.Method, Path: r.Path, Handler: r.Handler},
 			Impacted: impacted,
 		})
+	}
+	return nil, out, nil
+}
+
+func (st *store) shapeCheck(_ context.Context, _ *mcp.CallToolRequest, in shapeCheckIn) (*mcp.CallToolResult, shapeCheckOut, error) {
+	g, err := st.graphFor(in.Repo)
+	if err != nil {
+		return nil, shapeCheckOut{}, err
+	}
+	out := shapeCheckOut{Findings: make([]shapeFindingOut, 0)}
+	for _, f := range g.ShapeCheck() {
+		out.Findings = append(out.Findings, shapeFindingOut{Object: f.Object, Type: f.Type, File: f.File, Unknown: f.Unknown})
 	}
 	return nil, out, nil
 }
@@ -762,7 +793,7 @@ func (st *store) clusters(_ context.Context, _ *mcp.CallToolRequest, in clusters
 	coms := g.Communities()
 	out := clustersOut{Clusters: make([]clusterOut, 0, len(coms))}
 	for _, c := range coms {
-		out.Clusters = append(out.Clusters, clusterOut{ID: c.ID, Name: c.Name, Members: c.Members})
+		out.Clusters = append(out.Clusters, clusterOut{ID: c.ID, Name: c.Name, Members: c.Members, Cohesion: c.Cohesion})
 	}
 	return nil, out, nil
 }

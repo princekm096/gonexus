@@ -53,6 +53,17 @@ type Node struct {
 	// Vector is an optional normalized embedding of the node's text, set at
 	// index time when an embedder is configured; powers semantic search.
 	Vector []float32 `json:"vector,omitempty"`
+	// Fields is the wire shape of a struct/type (JSON field names), used by
+	// shape_check to validate consumer property access.
+	Fields []string `json:"fields,omitempty"`
+}
+
+// AccessShape records the property names a consumer reads off an object
+// identifier (from TS/Vue), used to validate against a provider's Fields.
+type AccessShape struct {
+	Object string   `json:"object"` // the object identifier, e.g. "user"
+	Props  []string `json:"props"`  // properties accessed on it
+	File   string   `json:"file"`
 }
 
 type Edge struct {
@@ -72,6 +83,7 @@ type Graph struct {
 	Nodes  map[string]*Node `json:"nodes"`
 	Edges  []Edge           `json:"edges"`
 	Routes []Route          `json:"routes,omitempty"`
+	Shapes []AccessShape    `json:"shapes,omitempty"`
 
 	// adjacency, rebuilt on load; not serialized.
 	out map[string][]Edge `json:"-"`
@@ -115,6 +127,9 @@ func (g *Graph) AddEdge(e Edge) {
 // AddRoute records an HTTP endpoint → handler mapping.
 func (g *Graph) AddRoute(r Route) { g.Routes = append(g.Routes, r) }
 
+// AddShape records a consumer property-access shape.
+func (g *Graph) AddShape(s AccessShape) { g.Shapes = append(g.Shapes, s) }
+
 // Merge folds other's nodes, edges, and routes into g (used to combine
 // per-language extractors — e.g. a Go backend and a Vue frontend in one repo).
 func (g *Graph) Merge(other *Graph) {
@@ -125,6 +140,7 @@ func (g *Graph) Merge(other *Graph) {
 		g.AddEdge(e)
 	}
 	g.Routes = append(g.Routes, other.Routes...)
+	g.Shapes = append(g.Shapes, other.Shapes...)
 }
 
 // index rebuilds adjacency maps (after JSON load).

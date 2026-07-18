@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/yourorg/gonexus/internal/analysis"
@@ -72,10 +74,22 @@ func embedNodes(g *graph.Graph) {
 		return
 	}
 	ids := make([]string, 0, len(g.Nodes))
-	texts := make([]string, 0, len(g.Nodes))
-	for id, n := range g.Nodes {
+	for id := range g.Nodes {
 		ids = append(ids, id)
-		texts = append(texts, graph.NodeText(n))
+	}
+	// GONEXUS_EMBED_MAX_NODES caps how many nodes get vectors (embedding cost);
+	// the most-referenced symbols are prioritized. Uncapped nodes stay BM25-only.
+	if cap := envInt("GONEXUS_EMBED_MAX_NODES"); cap > 0 && len(ids) > cap {
+		indeg := map[string]int{}
+		for _, e := range g.Edges {
+			indeg[e.To]++
+		}
+		sort.Slice(ids, func(i, j int) bool { return indeg[ids[i]] > indeg[ids[j]] })
+		ids = ids[:cap]
+	}
+	texts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		texts = append(texts, graph.NodeText(g.Nodes[id]))
 	}
 	vecs, err := emb.Embed(context.Background(), texts)
 	if err != nil {
@@ -85,4 +99,9 @@ func embedNodes(g *graph.Graph) {
 	for i, id := range ids {
 		g.Nodes[id].Vector = graph.Normalize(vecs[i])
 	}
+}
+
+func envInt(key string) int {
+	n, _ := strconv.Atoi(os.Getenv(key))
+	return n
 }

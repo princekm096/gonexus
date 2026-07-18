@@ -118,6 +118,7 @@ Tools (all take an optional `repo` arg; omit it when only one repo is indexed):
 | `check` | validate symbol ids + report dangling edges |
 | `cypher` | single-hop graph pattern query |
 | `route_map` / `api_impact` | HTTP routes → handlers, and route blast radius |
+| `shape_check` | consumer property access (TS/Vue) vs provider struct fields (Go) |
 | `tool_map` | list all tools |
 | `group_list` / `group_sync` | repo groups + cross-repo contract links |
 | `reindex` | (re)index a repo by path |
@@ -187,6 +188,8 @@ All optional. Unset → sensible defaults (BM25 search, structural wiki).
 | `GONEXUS_LLM_KEY` | Bearer token for the chat endpoint |
 | `GONEXUS_TS_EXTRACTOR` | path to `extract.mjs` if not at `tools/ts-extractor/extract.mjs` |
 | `GONEXUS_PDG` | set to `1` at index time to build the SSA PDG + taint analysis (Go; heavier) |
+| `GONEXUS_EMBED_DEVICE` | device passthrough for the embeddings provider (cpu/cuda/mps/…) |
+| `GONEXUS_EMBED_MAX_NODES` | cap embedded nodes (most-referenced prioritized); rest stay BM25-only |
 
 Semantic search needs the embed vars set **at index time** (to store node
 vectors) *and* at query time (to embed the query). Example with a local Ollama:
