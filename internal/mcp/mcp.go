@@ -9,6 +9,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/yourorg/gonexus/internal/changes"
@@ -193,6 +194,7 @@ type wikiIn struct {
 }
 type wikiOut struct {
 	Markdown string `json:"markdown"`
+	Path     string `json:"path"` // where the wiki was written on disk
 }
 
 type groupListIn struct{}
@@ -370,7 +372,7 @@ func (st *store) register(srv *mcp.Server) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "wiki",
-		Description: "Generate architecture documentation (markdown) for a repo from its graph: modules, entry points, key interfaces, most-called functions. Use to onboard onto an unfamiliar codebase.",
+		Description: "Generate architecture documentation (markdown) for a repo from its graph: modules, entry points, key interfaces, most-called functions. Also saves it to <repo>/.gonexus/wiki.md (path returned). Use to onboard onto an unfamiliar codebase.",
 	}, st.wiki)
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -782,7 +784,15 @@ func (st *store) wiki(ctx context.Context, _ *mcp.CallToolRequest, in wikiIn) (*
 	if err != nil {
 		return nil, wikiOut{}, err
 	}
-	return nil, wikiOut{Markdown: md}, nil
+	dir := registry.CacheDir(repo.Path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, wikiOut{}, err
+	}
+	out := filepath.Join(dir, "wiki.md")
+	if err := os.WriteFile(out, []byte(md), 0o644); err != nil {
+		return nil, wikiOut{}, err
+	}
+	return nil, wikiOut{Markdown: md, Path: out}, nil
 }
 
 func (st *store) clusters(_ context.Context, _ *mcp.CallToolRequest, in clustersIn) (*mcp.CallToolResult, clustersOut, error) {
