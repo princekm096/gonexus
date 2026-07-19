@@ -1,227 +1,308 @@
 # GoNexus
 
-A **code knowledge graph** for AI agents and humans. GoNexus indexes a
+**A code knowledge graph for AI agents and humans.** GoNexus indexes your
 codebase into a graph of symbols (functions, types, components) and their
-relationships (calls, imports, implements), then answers architectural
-questions — blast radius, execution flows, modules, semantic search — over
-gRPC, MCP, and a web UI.
+relationships (calls, imports, implements, constructs), then answers the
+architectural questions that normally take a human — or an AI agent — many
+exploratory reads to figure out: *what calls this? what breaks if I change it?
+how does this request flow? what modules exist? does the frontend match the
+backend?*
 
-Clean-room implementation (no upstream license constraints). Stack: **Go +
-gRPC/Connect backend, Vue 3 + WebGL frontend, MCP for agents.**
+Stack: **Go + gRPC/Connect backend, Vue 3 + WebGL frontend, MCP for agents.**
+Languages indexed: **Go** (via `go/packages` + `go/types`) and **TypeScript /
+JavaScript / Vue** (via the TypeScript compiler + `@vue/compiler-sfc`) — real
+type resolution, so the call graph is precise across files *and* languages.
 
-- **Language-native indexing** — Go via `go/packages`+`go/types`, TS/JS/Vue via
-  the TypeScript compiler + `@vue/compiler-sfc`. Real type resolution, not
-  regex/heuristics, so the call graph is precise across files and languages.
-- **One graph per repo**, many repos per server. Incremental re-index.
-- **12 MCP tools** so Claude Code / Cursor / Codex get precomputed context in one
-  call instead of ten exploratory reads.
-
-See [STATUS.md](STATUS.md) for the full feature checklist.
+> **Why it exists:** AI coding agents miss architectural context and make broken
+> edits. GoNexus precomputes the relationships at index time, so an agent gets a
+> complete answer in one call instead of ten grep/read round-trips — and humans
+> get the same answers from a CLI, an API, or a web UI.
 
 ---
 
-## Prerequisites
+## Table of contents
 
-| Need | For |
-|------|-----|
-| **Go 1.25+** | building GoNexus; indexing Go repos (their Go toolchain must be present) |
-| **Node 18+** | indexing TS/JS/Vue; running the web UI |
-| **git** | `detect_changes` (git-diff impact) |
-| OpenAI-compatible endpoint (Ollama, LM Studio, OpenAI…) | *optional* semantic search + wiki prose |
-| `buf` + protoc plugins | *optional* only to regenerate the gRPC contract |
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Core concept: the graph](#core-concept-the-graph)
+- [Feature guide](#feature-guide) — what each feature is, how to use it, why it helps
+  - [Search & navigation](#1-search--navigation)
+  - [Change safety](#2-change-safety-impact--diffs)
+  - [Architecture understanding](#3-architecture-understanding)
+  - [Refactoring](#4-refactoring)
+  - [Deep static analysis (Go)](#5-deep-static-analysis-go)
+  - [API correctness](#6-api-correctness)
+  - [Multi-repo](#7-multi-repo-groups)
+  - [Agent integration](#8-agent-integration)
+  - [Visualization](#9-web-ui--visualization)
+- [Interfaces: CLI, API, MCP](#interfaces)
+- [Configuration](#configuration)
+- [Security](#security)
+- [How it works](#how-it-works)
+- [Development](#development)
 
-> The Go module is `github.com/yourorg/gonexus`. For local use it works as-is;
-> rename it in `go.mod` and imports if you publish under your own org.
+---
 
 ## Install
 
 ```bash
 git clone <this-repo> gonexus && cd gonexus
-
-# 1. backend binary
-go build -o gonexus ./cmd/gonexus
-
-# 2. TS/Vue extractor deps (once) — skip if you only index Go
-cd tools/ts-extractor && npm install && cd -
-
-# 3. web UI deps (once) — skip if you only use the API/MCP
-cd web && npm install && cd -
+go build -o gonexus ./cmd/gonexus          # backend binary
+cd tools/ts-extractor && npm install && cd -   # TS/Vue indexing (optional)
+cd web && npm install && cd -                  # web UI (optional)
 ```
 
-Put `gonexus` on your `PATH` if you like (`sudo mv gonexus /usr/local/bin`).
+**Prerequisites:** Go 1.25+ (and the Go toolchain present for repos you index),
+Node 18+ (for TS/Vue and the UI), git (for diff-impact). An OpenAI-compatible
+endpoint is optional (semantic search, wiki prose, chat).
 
 ## Quick start
 
 ```bash
-# Index a repo and register it. Name defaults to the directory name.
-gonexus index /path/to/your/repo myrepo
-
-# Option A — serve the API + open the web UI
-gonexus serve :8080            # in one terminal
-cd web && npm run dev           # in another → http://localhost:5173
-
-# Option B — expose it to Claude Code as MCP tools
-claude mcp add gonexus -- /absolute/path/to/gonexus mcp
-```
-
-That's it. Query from the UI, from an agent, or with `curl` (see
-[HTTP API](#http-api)).
-
-## CLI
-
-```
-gonexus setup                 Index the current dir + print the MCP wiring command.
-gonexus index <path> [name]   Index a repo and register it (incremental).
-gonexus list                  List registered repos.
-gonexus status                Show which repo indexes are stale.
-gonexus remove <name>         Drop a repo from the registry.
-gonexus clean <name>          Remove a repo's index cache and unregister it.
-gonexus group ...             Manage repo groups (create/add/remove/list/sync/impact).
-gonexus skills [repo]         Generate agent skill files for a repo.
-gonexus hooks                 Print a Claude Code hooks snippet (stale-index warnings).
-gonexus wiki [repo]           Print architecture docs (markdown) to stdout.
-gonexus serve [addr]          Serve all registered repos (default :8080).
-gonexus mcp                   Serve over MCP stdio (for agents).
-gonexus doctor                Check required tools/deps.
-gonexus uninstall             Remove ~/.gonexus global state.
-```
-
-Repos are tracked in `~/.gonexus/registry.json`; each repo's graph lives in its
-own `<repo>/.gonexus/graph.json` (add `.gonexus/` to that repo's `.gitignore`).
-A running `serve`/`mcp` process reloads a repo's graph when it changes on disk,
-so a `gonexus index` from the CLI shows up live.
-
-## MCP (agent integration)
-
-```bash
-gonexus index /path/to/repo          # index first
+gonexus index /path/to/your/repo myrepo    # build + register the graph
+gonexus serve                              # API on 127.0.0.1:8080
+#   … or expose to Claude Code:
 claude mcp add gonexus -- /abs/path/to/gonexus mcp
+#   … or open the web UI:
+cd web && npm run dev                       # http://localhost:5173
 ```
 
-Tools (all take an optional `repo` arg; omit it when only one repo is indexed):
+Then ask questions — from the CLI (`gonexus impact myrepo <symbol>`), the API
+(`curl … /Impact`), an agent (the `impact` MCP tool), or the UI.
 
-| Tool | What it answers |
-|------|-----------------|
-| `repos` | which repos are indexed (and if any is `stale`) |
-| `query` | hybrid search for symbols by name/text |
-| `context` | a symbol's signature, doc, callers, and callees |
-| `impact` | blast radius — everything that breaks if this symbol changes |
-| `trace` | shortest call path between two symbols |
-| `entrypoints` | execution-flow roots (main, handlers, commands) |
-| `process` | the full call-tree flow rooted at an entry point |
-| `clusters` | emergent modules (community detection) |
-| `detect_changes` | git diff → changed symbols + their blast radius |
-| `rename` | confidence-scored multi-file rename (plan or apply) |
-| `wiki` | generated architecture documentation |
-| `explain` | source→sink taint findings (needs `GONEXUS_PDG=1` indexing) |
-| `pdg_query` | a function's CFG + data-dependence summary (needs `--pdg`) |
-| `check` | validate symbol ids + report dangling edges |
-| `cypher` | single-hop graph pattern query |
-| `route_map` / `api_impact` | HTTP routes → handlers, and route blast radius |
-| `shape_check` | consumer property access (TS/Vue) vs provider struct fields (Go) |
-| `tool_map` | list all tools |
-| `group_list` / `group_sync` | repo groups + cross-repo contract links |
-| `reindex` | (re)index a repo by path |
+## Core concept: the graph
 
-MCP prompts: `detect_impact` (pre-commit change analysis), `generate_map`
-(architecture doc with a mermaid diagram).
+Everything is one graph per repo:
 
-Typical agent loop: `impact` before editing a symbol; `detect_changes` before
-committing; `context`/`trace` while navigating.
+- **Nodes** — packages, files, functions, methods, types, interfaces, classes,
+  Vue components. Each carries its signature, doc, location, and (for structs)
+  field shape.
+- **Edges** — `calls`, `imports`, `implements`, `defines`, `constructs`.
+- Go and TS/Vue are indexed by their own compilers and **merged into one graph**,
+  so a Go backend + Vue frontend is a single queryable model.
 
-## HTTP API
+Every feature below is a query or transformation over this graph. Symbol **ids**
+come from search/context results — Go: `pkg/path.Type.Method`; TS/Vue:
+`relpath#Symbol`.
 
-The server speaks the [Connect protocol](https://connectrpc.com): a unary call
-is a plain HTTP POST with a JSON body, so any HTTP client works — no gRPC
-codegen needed. It also serves gRPC and gRPC-Web on the same port.
+---
 
-```
-POST http://localhost:8080/gonexus.v1.GoNexusService/<Method>
-Content-Type: application/json
-```
+## Feature guide
 
-Examples:
+Each feature: **what it is · how to use it · why it helps.** Tool names are the
+MCP tool / the CLI verb (most also have a gRPC method).
 
+### 1. Search & navigation
+
+**Hybrid search** (`query`)
+- *What:* find symbols by name or meaning. BM25 keyword ranking (with camelCase
+  splitting + full Porter stemming) always on; fused via Reciprocal Rank Fusion
+  with semantic embeddings when an embeddings endpoint is configured.
+- *How:* `gonexus query myrepo "parse config"` · MCP `query` · results are
+  grouped by the execution flow (process) they belong to.
+- *Why:* one search that catches both exact names and conceptually-related code,
+  even when you don't know the exact identifier.
+
+**Context** (`context`)
+- *What:* a 360° view of one symbol — signature, doc, location, and its incoming
+  (callers) and outgoing (callees) edges.
+- *How:* `gonexus context myrepo <id>` · MCP `context`.
+- *Why:* understand a symbol and everything around it without opening five files.
+
+**Cypher** (`cypher`)
+- *What:* a graph pattern query, e.g. `(a:func)-[:calls]->(b:method)`.
+- *How:* `gonexus cypher myrepo "(a:func)-[:calls]->(b:method)"` · MCP `cypher`.
+- *Why:* ask structural questions ("which functions call methods?") directly.
+
+### 2. Change safety (impact & diffs)
+
+**Impact / blast radius** (`impact`)
+- *What:* every symbol that transitively calls the target — grouped by call
+  distance (depth) with a confidence (1/depth: direct callers 1.0, two hops 0.5).
+- *How:* `gonexus impact myrepo <id>` · MCP `impact`.
+- *Why:* know exactly what could break *before* you edit — the single most
+  valuable pre-edit check.
+
+**Git-diff impact** (`detect_changes`)
+- *What:* maps your current `git diff` to the symbols it changes and their
+  combined blast radius.
+- *How:* `gonexus detect-changes myrepo [base]` · MCP `detect_changes`.
+- *Why:* pre-commit / PR review — see what a change actually affects and what to
+  re-test, no guessing.
+
+**Trace** (`trace`)
+- *What:* the shortest call path between two symbols.
+- *How:* `gonexus trace myrepo <fromID> <toID>` · MCP `trace`.
+- *Why:* answer "how does A reach B?" instantly.
+
+### 3. Architecture understanding
+
+**Entry points & process tracing** (`entrypoints`, `process`)
+- *What:* `entrypoints` lists execution roots (main, HTTP handlers, CLI commands)
+  ranked by reach; `process` returns the full call tree from a root.
+- *How:* MCP `entrypoints` / `process`.
+- *Why:* learn how an unfamiliar codebase actually runs, end to end.
+
+**Clustering** (`clusters`)
+- *What:* emergent modules found by **multi-level Louvain** community detection
+  over the call graph, each with a **cohesion** score (how self-contained it is).
+- *How:* MCP `clusters`.
+- *Why:* discover the *real* functional structure — cross-package modules the
+  directory layout doesn't show.
+
+**Wiki** (`wiki`)
+- *What:* architecture documentation generated from the graph — overview,
+  frameworks detected, modules, entry points, key interfaces, most-called
+  functions. Adds an LLM-authored narrative when a chat endpoint is configured.
+- *How:* `gonexus wiki myrepo` (markdown to stdout) · MCP `wiki`.
+- *Why:* onboarding docs that never go stale — regenerated from the code itself.
+
+### 4. Refactoring
+
+**Coordinated rename** (`rename`)
+- *What:* a confidence-scored, multi-file rename plan (and optional apply). The
+  graph finds the reference files; whole-word replace does the edits; confidence
+  = how unique the name is (1.0 = safe to auto-apply).
+- *How:* MCP `rename` (plan first, check confidence, then `apply:true`).
+- *Why:* rename across files with a safety signal, without a full IDE.
+
+### 5. Deep static analysis (Go)
+
+Opt-in with `GONEXUS_PDG=1` at index time (heavier; Go only).
+
+**Taint analysis** (`explain`)
+- *What:* source→sink flows — untrusted input (env, HTTP request) reaching
+  dangerous sinks (exec, SQL, file ops), via SSA def-use propagation.
+- *How:* MCP `explain`.
+- *Why:* catch injection-class bugs the call graph alone can't see.
+
+**Program-dependence graph** (`pdg_query`)
+- *What:* a function's control-flow graph (basic blocks + edges) and
+  statement-level data dependence (SSA def-use count).
+- *How:* MCP `pdg_query`.
+- *Why:* precise intra-function reasoning for debugging and analysis.
+
+**Always on (Go):** `constructs` edges (`NewX → X` constructor inference) and
+**framework detection** (Gin, Echo, GORM, gRPC, Vue, React… from imports),
+surfaced in the wiki.
+
+### 6. API correctness
+
+**Route map & API impact** (`route_map`, `api_impact`)
+- *What:* `route_map` detects HTTP endpoint→handler mappings (net/http, gin,
+  echo, chi); `api_impact` returns the blast radius of a route's handler.
+- *How:* MCP `route_map` / `api_impact`.
+- *Why:* see your API surface and what a route change affects.
+
+**Shape check** (`shape_check`)
+- *What:* cross-language validation — compares a consumer's property access
+  (TS/Vue `user.email`) against the provider's struct fields (Go `User` JSON
+  tags), flagging typos and stale/removed fields.
+- *How:* `gonexus shape-check myrepo` · MCP `shape_check`.
+- *Why:* catch frontend/backend contract drift that neither compiler sees alone.
+
+**Structural check** (`check`)
+- *What:* validates symbol ids exist and reports dangling edges.
+- *How:* `gonexus check myrepo <ids…>` · MCP `check`.
+- *Why:* a fast integrity check over the indexed graph.
+
+### 7. Multi-repo (groups)
+
+**Groups & cross-repo impact** (`group_list`, `group_sync`, `gonexus group …`)
+- *What:* track several repos as a group; `group_sync` builds a cross-repo
+  contract registry (shared exported symbols / routes) and links the repos;
+  `group impact` shows which other repos a change may affect.
+- *How:* `gonexus group create svc` → `group add svc api` → `group sync svc`.
+- *Why:* blast radius that crosses service boundaries — essential for a
+  microservice org.
+
+### 8. Agent integration
+
+**MCP server** (`gonexus mcp`) — exposes all the tools above over stdio to Claude
+Code, Cursor, Codex, etc. Plus:
+
+- **Prompts** — `detect_impact` (pre-commit change analysis) and `generate_map`
+  (architecture doc with a mermaid diagram) as one-call workflows.
+- **Skills** (`gonexus skills`) — generates ready-to-use agent skill files (6
+  standard workflows + one per detected module) so agents know when to reach for
+  each tool.
+- **Editor hooks** (`gonexus hooks` / `gonexus enrich`) — a PreToolUse hook that
+  injects the **blast radius of the file being edited** before the edit runs, and
+  a PostToolUse hook that warns when the index is stale.
+- **Chat / Ask** — a natural-language question answered by a **server-side ReAct
+  agent** that drives the graph tools (query → context → impact …) to a
+  conclusion; degrades to a relevant-symbols list without an LLM.
+- *Why:* the whole point — agents get precomputed context and stop making broken,
+  under-informed edits.
+
+### 9. Web UI & visualization
+
+- *What:* Vue 3 app with a repo selector, symbol search/detail, an **Ask** chat
+  panel, and a **WebGL graph** (Sigma.js + ForceAtlas2) showing a symbol's
+  neighborhood — click a node to re-focus. Auto-detects a local `gonexus serve`.
+- *How:* `cd web && npm run dev`.
+- *Why:* humans explore the same graph visually that agents query programmatically.
+
+---
+
+## Interfaces
+
+Everything is available three ways:
+
+| Interface | For | How |
+|-----------|-----|-----|
+| **CLI** | humans, scripts, CI | `gonexus <verb> <repo> …` |
+| **API** | any service (Connect = plain HTTP POST JSON, also gRPC / gRPC-Web) | `POST /gonexus.v1.GoNexusService/<Method>` |
+| **MCP** | AI agents | `claude mcp add gonexus -- /abs/gonexus mcp` |
+
+**CLI commands:** `index`, `list`, `status`, `remove`, `clean`, `query`,
+`context`, `impact`, `trace`, `cypher`, `check`, `shape-check`, `detect-changes`,
+`group …`, `skills`, `hooks`, `enrich`, `wiki`, `serve`, `mcp`, `setup`,
+`doctor`, `uninstall`.
+
+**API example:**
 ```bash
-# list repos
-curl -s localhost:8080/gonexus.v1.GoNexusService/Repos \
-  -H 'Content-Type: application/json' -d '{}'
-
-# search
-curl -s localhost:8080/gonexus.v1.GoNexusService/Query \
-  -H 'Content-Type: application/json' \
-  -d '{"repo":"myrepo","q":"parse config","limit":10}'
-
-# blast radius of a symbol
 curl -s localhost:8080/gonexus.v1.GoNexusService/Impact \
   -H 'Content-Type: application/json' \
   -d '{"repo":"myrepo","id":"github.com/acme/app/config.Load"}'
-
-# what does my current git diff affect?
-curl -s localhost:8080/gonexus.v1.GoNexusService/DetectChanges \
-  -H 'Content-Type: application/json' -d '{"repo":"myrepo"}'
-
-# plan a rename (apply:true to write the edits)
-curl -s localhost:8080/gonexus.v1.GoNexusService/Rename \
-  -H 'Content-Type: application/json' \
-  -d '{"repo":"myrepo","id":"github.com/acme/app/config.Load","new_name":"Read","apply":false}'
 ```
 
-Methods: `Index`, `Query`, `Context`, `Impact`, `Trace`, `Subgraph`, `Repos`,
-`EntryPoints`, `Process`, `Clusters`, `DetectChanges`, `Rename`, `Wiki`,
-`Explain`, `PdgQuery`. Full
-message shapes are in [`proto/gonexus/v1/gonexus.proto`](proto/gonexus/v1/gonexus.proto).
-Symbol ids come from `Query`/`Context` results (Go: `pkg/path.Type.Method`;
-TS/Vue: `relpath#Symbol`).
+**Multi-repo:** repos live in `~/.gonexus/registry.json`; each repo's graph is in
+its own `<repo>/.gonexus/graph.json`. One `serve`/`mcp` process handles them all
+and hot-reloads a repo's graph when it changes on disk. `gonexus status` shows
+which indexes are stale. Re-indexing is **incremental** (per-language
+fingerprint cache): a no-op reindex is ~0.01s vs ~1.8s cold, and editing only Go
+skips the TS toolchain entirely.
 
-## Configuration (environment)
+## Configuration
 
-All optional. Unset → sensible defaults (BM25 search, structural wiki).
+All optional. Unset → sensible defaults (BM25 search, structural wiki, no auth,
+loopback bind).
 
 | Variable | Effect |
 |----------|--------|
-| `GONEXUS_EMBED_URL` | OpenAI-compatible embeddings endpoint → adds semantic reranking to `query` |
-| `GONEXUS_EMBED_MODEL` | embedding model name |
-| `GONEXUS_EMBED_KEY` | Bearer token for the embeddings endpoint |
-| `GONEXUS_LLM_URL` | OpenAI-compatible chat endpoint → adds LLM prose to `wiki` |
-| `GONEXUS_LLM_MODEL` | chat model name |
-| `GONEXUS_LLM_KEY` | Bearer token for the chat endpoint |
-| `GONEXUS_TS_EXTRACTOR` | path to `extract.mjs` if not at `tools/ts-extractor/extract.mjs` |
-| `GONEXUS_PDG` | set to `1` at index time to build the SSA PDG + taint analysis (Go; heavier) |
-| `GONEXUS_EMBED_DEVICE` | device passthrough for the embeddings provider (cpu/cuda/mps/…) |
-| `GONEXUS_EMBED_MAX_NODES` | cap embedded nodes (most-referenced prioritized); rest stay BM25-only |
-| `GONEXUS_AUTH_TOKEN` | require `Authorization: Bearer <token>` on every API request |
-| `GONEXUS_READ_ONLY` | `1` disables `Index` and forces `Rename` to plan-only (no writes) |
-| `GONEXUS_CORS_ORIGINS` | extra allowed browser origins (comma-separated); localhost is always allowed |
-
-Semantic search needs the embed vars set **at index time** (to store node
-vectors) *and* at query time (to embed the query). Example with a local Ollama:
-
-```bash
-export GONEXUS_EMBED_URL=http://localhost:11434/v1/embeddings
-export GONEXUS_EMBED_MODEL=nomic-embed-text
-gonexus index /path/to/repo myrepo   # stores vectors
-gonexus serve :8080                   # embeds queries
-```
+| `GONEXUS_EMBED_URL` / `_MODEL` / `_KEY` | OpenAI-compatible embeddings → semantic search |
+| `GONEXUS_EMBED_DEVICE` | device passthrough (cpu/cuda/mps/…) |
+| `GONEXUS_EMBED_MAX_NODES` | cap embedded nodes (most-referenced prioritized) |
+| `GONEXUS_LLM_URL` / `_MODEL` / `_KEY` | OpenAI-compatible chat → wiki prose, Ask agent |
+| `GONEXUS_PDG` | `1` at index time to build SSA PDG + taint (Go) |
+| `GONEXUS_AUTH_TOKEN` | require `Authorization: Bearer <token>` on the API |
+| `GONEXUS_READ_ONLY` | `1` disables `Index`, forces `Rename` plan-only |
+| `GONEXUS_CORS_ORIGINS` | extra allowed browser origins (localhost always allowed) |
+| `GONEXUS_TS_EXTRACTOR` | path to `extract.mjs` if not at the default |
 
 ## Security
 
-The server can read indexed source and, unless read-only, apply file edits
-(`Rename`) and index arbitrary paths (`Index`) — so it is not meant to be openly
-exposed.
+The server can read indexed source and (unless read-only) edit files, so it's
+not meant to be openly exposed.
 
-- **Binds to `127.0.0.1` by default** (`gonexus serve`). Only bind to a public
-  interface deliberately.
-- **Token auth** — set `GONEXUS_AUTH_TOKEN` to require `Authorization: Bearer
-  <token>` on every request (constant-time compared). The server warns if it's
-  bound to a non-loopback address without a token.
-- **Read-only mode** — `GONEXUS_READ_ONLY=1` rejects `Index` and downgrades
-  `Rename` to plan-only. Recommended when serving to agents you don't fully
-  trust.
-- **CORS is origin-checked**, never `*` — only `localhost` (and any
-  `GONEXUS_CORS_ORIGINS` you add) may call the API from a browser.
-- **Docker image runs as a non-root user**; `git diff` refs are validated to
-  prevent option injection; rename targets are validated as identifiers.
+- **Binds `127.0.0.1` by default**; warns if bound to a public interface without
+  a token.
+- **Token auth** — `GONEXUS_AUTH_TOKEN` (constant-time compared) on every request.
+- **Read-only mode** — `GONEXUS_READ_ONLY=1` for untrusted agents.
+- **Origin-checked CORS**, never `*`.
+- Docker image runs as a **non-root** user; `git` refs validated against option
+  injection; rename targets validated as identifiers.
 
 ## How it works
 
@@ -234,54 +315,32 @@ exposed.
    agents ◄── MCP stdio   ◄──── mcp    ◄─────────────────────────────────────────┘
 ```
 
-- **Nodes**: packages, files, functions, methods, types, interfaces, classes,
-  Vue components. **Edges**: `calls`, `imports`, `implements`, `defines`,
-  `constructs` (constructor → type).
-- **Deep analysis (Go, opt-in `GONEXUS_PDG=1`)**: SSA-based control-flow graphs,
-  statement-level data dependence (def-use), and source→sink taint — queried via
-  `explain` / `pdg_query`. Framework detection + constructor inference are
-  always on.
-- Go and TS/Vue are indexed by their own compilers, then **merged** into one
-  graph — a repo with a Go backend and a Vue frontend is a single graph.
-- The graph is held in memory and persisted as JSON. Queries (impact, trace,
-  clustering, search) run over it; BM25 search is built-in, embeddings optional.
-
 Package layout:
 
 ```
 proto/gonexus/v1/   gRPC/Connect contract (source of truth)
-gen/                 generated Go (buf)
-internal/graph/      graph model + queries (search, impact, trace, process, cluster)
-internal/index/      Go indexer, TS bridge, incremental fingerprinting
-internal/registry/   ~/.gonexus registry + per-repo graph store
-internal/embed/      optional embeddings client
-internal/llm/        optional chat client (wiki prose)
-internal/changes/    git-diff → symbols + blast radius
-internal/rename/     coordinated multi-file rename
-internal/wiki/       architecture doc generation
-internal/server/     Connect handlers
-internal/mcp/        MCP stdio server (agent tools)
-cmd/gonexus/        CLI entrypoint
-tools/ts-extractor/  Node sidecar: TS/JS/Vue → {nodes, edges}
-web/                 Vue 3 + Vite UI (Sigma.js WebGL graph)
+gen/                generated Go (buf)
+internal/graph/     graph model + queries (search, impact, trace, process, cluster, shape)
+internal/index/     Go indexer, TS bridge, incremental fingerprinting
+internal/analysis/  Go SSA: PDG + taint
+internal/registry/  ~/.gonexus registry, per-repo store, groups
+internal/changes/   git-diff → symbols + blast radius
+internal/rename/    coordinated multi-file rename
+internal/wiki/      architecture doc generation
+internal/embed/ llm/  optional embeddings + chat clients
+internal/server/    Connect handlers (+ auth/CORS)
+internal/mcp/       MCP stdio server (tools + prompts)
+internal/skills/    agent skill generation
+cmd/gonexus/        CLI
+tools/ts-extractor/ Node sidecar: TS/JS/Vue → {nodes, edges, shapes}
+web/                Vue 3 + Vite UI (Sigma.js WebGL graph)
 ```
-
-## Docker
-
-```bash
-docker build -t gonexus .
-docker run -p 8080:8080 -v "$PWD:/repo" gonexus index /repo myrepo
-docker run -p 8080:8080 gonexus serve :8080
-```
-
-The image bundles the Go toolchain + Node + extractor deps (both are needed at
-index time). CI (build/test + image build) is in `.github/workflows/ci.yml`.
 
 ## Development
 
 ```bash
-go test ./...          # run the test suite
-go build ./...         # build everything
+go test ./...     # 39 tests
+go build ./...
 ```
 
 Regenerate the gRPC contract after editing `proto/` (needs `buf`):
@@ -293,25 +352,6 @@ go install github.com/bufbuild/buf/cmd/buf@latest \
 buf generate
 ```
 
-The TS/Vue extractor is a standalone Node script
-([`tools/ts-extractor/extract.mjs`](tools/ts-extractor/extract.mjs)); run it
-directly for debugging:
-
-```bash
-node tools/ts-extractor/extract.mjs /path/to/js-or-vue/project | jq .
-```
-
-## Design notes & limitations
-
-Deliberate, marked with `ponytail:` comments in the code (each names its upgrade
-path):
-
-- **In-memory graph + JSON persist**, not a graph DB — swap when a repo exceeds RAM.
-- **Incremental is per-language**, not per-file — editing any Go file rebuilds
-  the Go subgraph (but skips TS, and vice versa).
-- **`rename` is whole-word + graph-guided**, not compiler-exact — confidence
-  scores flag ambiguous names; use gopls when you need a verified Go rename.
-- **Clustering uses Label Propagation** — fast and dependency-free, but can form
-  one large community; Louvain would partition more finely.
-- **Semantic search / wiki prose need an external model** — without one you get
-  BM25 search and a structural (non-narrative) wiki, both fully functional.
+See [STATUS.md](STATUS.md) for the full built-vs-remaining checklist. Deliberate
+simplifications are marked with `ponytail:` comments in the code, each naming its
+upgrade path.
