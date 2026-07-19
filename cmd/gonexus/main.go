@@ -421,7 +421,11 @@ func cmdWiki(repo string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(md)
+	dir := registry.CacheDir(r.Path)
+	fatalIf(os.MkdirAll(dir, 0o755))
+	out := filepath.Join(dir, "wiki.md")
+	fatalIf(os.WriteFile(out, []byte(md), 0o644))
+	fmt.Printf("wrote wiki to %s\n", out)
 }
 
 func cmdServe(addr string) {
