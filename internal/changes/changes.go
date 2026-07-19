@@ -4,6 +4,7 @@ package changes
 
 import (
 	"bufio"
+	"fmt"
 	"math"
 	"os/exec"
 	"path/filepath"
@@ -63,13 +64,16 @@ func Detect(g *graph.Graph, repoPath, base string) (*Result, error) {
 }
 
 func gitDiff(repoPath, base string) (string, error) {
-	args := []string{"-C", repoPath, "diff", "--unified=0"}
-	if base != "" {
-		args = append(args, base)
-	} else {
-		args = append(args, "HEAD")
+	ref := base
+	if ref == "" {
+		ref = "HEAD"
 	}
-	out, err := exec.Command("git", args...).Output()
+	// Reject option-injection: `base` must be a ref name, not a git flag.
+	if strings.HasPrefix(ref, "-") {
+		return "", fmt.Errorf("invalid base ref %q", ref)
+	}
+	// `--` terminates options so the ref can't be reinterpreted as one.
+	out, err := exec.Command("git", "-C", repoPath, "diff", "--unified=0", ref, "--").Output()
 	if err != nil {
 		// git diff HEAD fails on a repo with no commits; treat as no diff.
 		return "", nil

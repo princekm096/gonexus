@@ -17,6 +17,14 @@ RUN go build -o /usr/local/bin/gonexus ./cmd/gonexus
 RUN cd tools/ts-extractor && npm install --omit=dev
 ENV GONEXUS_TS_EXTRACTOR=/src/tools/ts-extractor/extract.mjs
 
+# Run as a non-root user (least privilege).
+RUN useradd --create-home --uid 10001 gonexus \
+    && chown -R gonexus:gonexus /src
+USER gonexus
+
+# In a container the process is meant to be reachable, so bind all interfaces —
+# but the server logs a warning and (recommended) requires GONEXUS_AUTH_TOKEN
+# for non-loopback binds. Set GONEXUS_AUTH_TOKEN and/or GONEXUS_READ_ONLY=1.
 EXPOSE 8080
 ENTRYPOINT ["gonexus"]
-CMD ["serve", ":8080"]
+CMD ["serve", "0.0.0.0:8080"]

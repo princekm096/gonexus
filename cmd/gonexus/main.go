@@ -10,10 +10,13 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,7 +70,9 @@ func main() {
 		}
 		cmdWiki(repo)
 	case "serve":
-		addr := ":8080"
+		// Loopback by default: the API can read indexed source and (unless
+		// read-only) write files, so it must not be LAN-exposed accidentally.
+		addr := "127.0.0.1:8080"
 		if len(os.Args) > 2 {
 			addr = os.Args[2]
 		}
@@ -424,17 +429,73 @@ func cmdServe(addr string) {
 	mux := http.NewServeMux()
 	mux.Handle(gonexusv1connect.NewGoNexusServiceHandler(s))
 
+	token := os.Getenv("GONEXUS_AUTH_TOKEN")
+	if !isLoopback(addr) && token == "" {
+		log.Printf("WARNING: serving on non-loopback %s without GONEXUS_AUTH_TOKEN — the API can read indexed source and apply renames; set a token or bind to 127.0.0.1", addr)
+	}
+
 	// h2c so plaintext gRPC works in dev; CORS so the Vue dev server can call.
-	handler := withCORS(h2c.NewHandler(mux, &http2.Server{}))
+	handler := withCORS(withAuth(token, h2c.NewHandler(mux, &http2.Server{})))
 	log.Printf("gonexus serving on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }
 
-func withCORS(h http.Handler) http.Handler {
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// withAuth requires "Authorization: Bearer <token>" on every request when a
+// token is configured. OPTIONS passes so CORS preflight works.
+func withAuth(token string, h http.Handler) http.Handler {
+	if token == "" {
+		return h
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms")
+		if r.Method != http.MethodOptions &&
+			subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) != 1 {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// withCORS allows browser calls from local dev origins only (or the explicit
+// GONEXUS_CORS_ORIGINS comma list) — never a wildcard, so arbitrary websites
+// can't drive the API from a visitor's browser.
+func withCORS(h http.Handler) http.Handler {
+	extra := map[string]bool{}
+	for _, o := range strings.Split(os.Getenv("GONEXUS_CORS_ORIGINS"), ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			extra[o] = true
+		}
+	}
+	allowed := func(origin string) bool {
+		if extra[origin] {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+			return false
+		}
+		host := u.Hostname()
+		return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" && allowed(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Connect-Protocol-Version, Connect-Timeout-Ms")
+		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

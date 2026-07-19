@@ -190,6 +190,9 @@ All optional. Unset → sensible defaults (BM25 search, structural wiki).
 | `GONEXUS_PDG` | set to `1` at index time to build the SSA PDG + taint analysis (Go; heavier) |
 | `GONEXUS_EMBED_DEVICE` | device passthrough for the embeddings provider (cpu/cuda/mps/…) |
 | `GONEXUS_EMBED_MAX_NODES` | cap embedded nodes (most-referenced prioritized); rest stay BM25-only |
+| `GONEXUS_AUTH_TOKEN` | require `Authorization: Bearer <token>` on every API request |
+| `GONEXUS_READ_ONLY` | `1` disables `Index` and forces `Rename` to plan-only (no writes) |
+| `GONEXUS_CORS_ORIGINS` | extra allowed browser origins (comma-separated); localhost is always allowed |
 
 Semantic search needs the embed vars set **at index time** (to store node
 vectors) *and* at query time (to embed the query). Example with a local Ollama:
@@ -200,6 +203,25 @@ export GONEXUS_EMBED_MODEL=nomic-embed-text
 gonexus index /path/to/repo myrepo   # stores vectors
 gonexus serve :8080                   # embeds queries
 ```
+
+## Security
+
+The server can read indexed source and, unless read-only, apply file edits
+(`Rename`) and index arbitrary paths (`Index`) — so it is not meant to be openly
+exposed.
+
+- **Binds to `127.0.0.1` by default** (`gonexus serve`). Only bind to a public
+  interface deliberately.
+- **Token auth** — set `GONEXUS_AUTH_TOKEN` to require `Authorization: Bearer
+  <token>` on every request (constant-time compared). The server warns if it's
+  bound to a non-loopback address without a token.
+- **Read-only mode** — `GONEXUS_READ_ONLY=1` rejects `Index` and downgrades
+  `Rename` to plan-only. Recommended when serving to agents you don't fully
+  trust.
+- **CORS is origin-checked**, never `*` — only `localhost` (and any
+  `GONEXUS_CORS_ORIGINS` you add) may call the API from a browser.
+- **Docker image runs as a non-root user**; `git diff` refs are validated to
+  prevent option injection; rename targets are validated as identifiers.
 
 ## How it works
 

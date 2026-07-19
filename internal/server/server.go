@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -26,15 +27,19 @@ import (
 // repo (empty = the sole repo); the store loads and mtime-caches per-repo
 // graphs from ~/.gonexus/registry.json.
 type Server struct {
-	store *registry.Store
-	emb   embed.Embedder // nil unless GONEXUS_EMBED_URL is set
-	llm   llm.Client     // nil unless GONEXUS_LLM_URL is set
+	store    *registry.Store
+	emb      embed.Embedder // nil unless GONEXUS_EMBED_URL is set
+	llm      llm.Client     // nil unless GONEXUS_LLM_URL is set
+	readOnly bool           // GONEXUS_READ_ONLY=1: reject Index, downgrade Rename to plan-only
 }
 
 var _ gonexusv1connect.GoNexusServiceHandler = (*Server)(nil)
 
 func New() *Server {
-	return &Server{store: registry.NewStore(), emb: embed.FromEnv(), llm: llm.FromEnv()}
+	return &Server{
+		store: registry.NewStore(), emb: embed.FromEnv(), llm: llm.FromEnv(),
+		readOnly: os.Getenv("GONEXUS_READ_ONLY") == "1",
+	}
 }
 
 // queryVector embeds q for semantic reranking, or returns nil (BM25 only).
@@ -59,6 +64,10 @@ func (s *Server) graphFor(repo string) (*graph.Graph, error) {
 }
 
 func (s *Server) Index(ctx context.Context, req *connect.Request[v1.IndexRequest]) (*connect.Response[v1.IndexResponse], error) {
+	if s.readOnly {
+		return nil, connect.NewError(connect.CodePermissionDenied,
+			fmt.Errorf("read-only mode (GONEXUS_READ_ONLY): Index disabled"))
+	}
 	name, nodes, edges, err := index.IndexAndRegister(req.Msg.Path, req.Msg.Name)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -174,7 +183,8 @@ func (s *Server) Rename(ctx context.Context, req *connect.Request[v1.RenameReque
 	if err != nil {
 		return nil, err
 	}
-	res, err := rename.Plan(g, req.Msg.Id, req.Msg.NewName, req.Msg.Apply)
+	apply := req.Msg.Apply && !s.readOnly // read-only: plan-only, never write
+	res, err := rename.Plan(g, req.Msg.Id, req.Msg.NewName, apply)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
