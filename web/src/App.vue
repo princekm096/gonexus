@@ -22,7 +22,12 @@ onMounted(async () => {
   try {
     const r = await api.repos();
     repos.value = r.repos || [];
-    if (repos.value.length) repo.value = repos.value[0].name;
+    // Default to the repo with the most indexed symbols — the first entry is
+    // often an empty testdata repo, which makes search look broken.
+    if (repos.value.length)
+      repo.value = repos.value.reduce((a, b) =>
+        (b.nodes || 0) > (a.nodes || 0) ? b : a,
+      ).name;
     connected.value = true;
   } catch (e) {
     connected.value = false; // no local backend detected

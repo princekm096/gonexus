@@ -1,7 +1,9 @@
 // Connect unary calls are plain HTTP POST with a JSON body — no grpc-web client,
 // no codegen. One helper covers the whole service.
-const BASE =
-  import.meta.env.VITE_GONEXUS_URL || "http://localhost:8080";
+// Empty base = same origin the page was served from, so `gonexus serve` works
+// whether opened via localhost or 127.0.0.1, on any port. Override with
+// VITE_GONEXUS_URL when the UI and API live apart (e.g. the vite dev server).
+const BASE = import.meta.env.VITE_GONEXUS_URL || "";
 const SVC = "gonexus.v1.GoNexusService";
 
 async function call(method, body) {
