@@ -433,6 +433,25 @@ func cmdServe(addr string) {
 	mux := http.NewServeMux()
 	mux.Handle(gonexusv1connect.NewGoNexusServiceHandler(s))
 
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, "ok")
+	})
+
+	// Serve the built Vue UI from the same origin (no CORS needed). If it isn't
+	// built, "/" explains how instead of returning a bare 404.
+	if webDir := resolveWebDir(); webDir != "" {
+		mux.Handle("/", spaHandler(webDir))
+		log.Printf("web UI: %s", webDir)
+	} else {
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/" {
+				http.NotFound(w, r)
+				return
+			}
+			fmt.Fprintf(w, "GoNexus API is up.\nWeb UI not built — run: cd web && npm install && npm run build\n(or set GONEXUS_WEB_DIR to a built dist).\nAPI base path: /gonexus.v1.GoNexusService/\n")
+		})
+	}
+
 	token := os.Getenv("GONEXUS_AUTH_TOKEN")
 	if !isLoopback(addr) && token == "" {
 		log.Printf("WARNING: serving on non-loopback %s without GONEXUS_AUTH_TOKEN — the API can read indexed source and apply renames; set a token or bind to 127.0.0.1", addr)
@@ -456,14 +475,47 @@ func isLoopback(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// resolveWebDir finds the built Vue UI (a dir containing index.html), or "".
+// Checks GONEXUS_WEB_DIR, then web/dist next to the binary, then ./web/dist.
+func resolveWebDir() string {
+	var cands []string
+	if d := os.Getenv("GONEXUS_WEB_DIR"); d != "" {
+		cands = append(cands, d)
+	}
+	if exe, err := os.Executable(); err == nil {
+		cands = append(cands, filepath.Join(filepath.Dir(exe), "web", "dist"))
+	}
+	cands = append(cands, filepath.Join("web", "dist"))
+	for _, d := range cands {
+		if _, err := os.Stat(filepath.Join(d, "index.html")); err == nil {
+			return d
+		}
+	}
+	return ""
+}
+
+// spaHandler serves static files from dir, falling back to index.html for
+// paths that don't map to a file (client-side routes).
+func spaHandler(dir string) http.Handler {
+	fs := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := os.Stat(filepath.Join(dir, filepath.Clean(r.URL.Path))); os.IsNotExist(err) {
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		fs.ServeHTTP(w, r)
+	})
+}
+
 // withAuth requires "Authorization: Bearer <token>" on every request when a
-// token is configured. OPTIONS passes so CORS preflight works.
+// token is configured. OPTIONS passes so CORS preflight works; /healthz is
+// always open so health checks work on token-protected servers.
 func withAuth(token string, h http.Handler) http.Handler {
 	if token == "" {
 		return h
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodOptions &&
+		if r.URL.Path != "/healthz" && r.Method != http.MethodOptions &&
 			subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
