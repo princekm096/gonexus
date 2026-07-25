@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/yourorg/gonexus/gen/gonexus/v1/gonexusv1connect"
 	"github.com/yourorg/gonexus/internal/changes"
@@ -452,15 +453,28 @@ func cmdServe(addr string) {
 		})
 	}
 
+	// Fail closed: the API can index arbitrary paths (which executes the go/node
+	// toolchain — remote code execution) and read your code graph. Refuse to
+	// expose it on a non-loopback address without an auth token rather than
+	// warning and serving anyway. Loopback stays open for local dev.
 	token := os.Getenv("GONEXUS_AUTH_TOKEN")
 	if !isLoopback(addr) && token == "" {
-		log.Printf("WARNING: serving on non-loopback %s without GONEXUS_AUTH_TOKEN — the API can read indexed source and apply renames; set a token or bind to 127.0.0.1", addr)
+		log.Fatalf("refusing to serve on non-loopback %s without GONEXUS_AUTH_TOKEN: "+
+			"the API can execute the build toolchain (Index) and read your source graph. "+
+			"Set GONEXUS_AUTH_TOKEN (and optionally GONEXUS_READ_ONLY=1), or bind to 127.0.0.1.", addr)
 	}
 
 	// h2c so plaintext gRPC works in dev; CORS so the Vue dev server can call.
 	handler := withCORS(withAuth(token, h2c.NewHandler(mux, &http2.Server{})))
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: handler,
+		// Mitigate Slowloris: cap how long a client may dribble request headers.
+		// No WriteTimeout — Ask/wiki LLM calls can legitimately run for minutes.
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	log.Printf("gonexus serving on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, handler))
+	log.Fatal(srv.ListenAndServe())
 }
 
 func isLoopback(addr string) bool {

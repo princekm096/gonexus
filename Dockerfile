@@ -22,9 +22,11 @@ RUN useradd --create-home --uid 10001 gonexus \
     && chown -R gonexus:gonexus /src
 USER gonexus
 
-# In a container the process is meant to be reachable, so bind all interfaces —
-# but the server logs a warning and (recommended) requires GONEXUS_AUTH_TOKEN
-# for non-loopback binds. Set GONEXUS_AUTH_TOKEN and/or GONEXUS_READ_ONLY=1.
+# In a container the process is meant to be reachable, so bind all interfaces.
+# The server FAILS TO START on a non-loopback bind without GONEXUS_AUTH_TOKEN,
+# because the API can execute the build toolchain (Index) and read your source
+# graph. Run with a token, e.g.:
+#   docker run -e GONEXUS_AUTH_TOKEN=$(openssl rand -hex 32) [-e GONEXUS_READ_ONLY=1] ...
 EXPOSE 8080
 ENTRYPOINT ["gonexus"]
 CMD ["serve", "0.0.0.0:8080"]
