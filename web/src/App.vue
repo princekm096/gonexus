@@ -171,7 +171,7 @@ const shortId = (id) => id.split("/").pop();
 
 <style>
 body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #0d1117; color: #e6edf3; }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+.wrap { max-width: 1600px; margin: 0 auto; padding: 24px; }
 header { display: flex; align-items: baseline; gap: 10px; }
 h1 { margin: 0; font-size: 22px; }
 .sub { color: #7d8590; font-size: 13px; }
