@@ -12,7 +12,8 @@ const props = defineProps({
 const emit = defineEmits(["select"]);
 
 const container = ref(null);
-const maximized = ref(false);
+const wrapEl = ref(null);
+const expanded = ref(false); // grow the graph to near-full-viewport height
 let renderer = null;
 let graph = null;
 let hovered = null; // currently hovered node id (drives the highlight reducers)
@@ -38,11 +39,13 @@ const EDGE_COLOR = {
 };
 const DIM = "#22272e"; // faded color for nodes/edges outside the hovered neighborhood
 
+// build lays out the graph (graphology + ForceAtlas2) once per data change.
 function build() {
   if (renderer) {
     renderer.kill();
     renderer = null;
   }
+  graph = null;
   hovered = null;
   if (!container.value || props.nodes.length === 0) return;
 
@@ -67,7 +70,7 @@ function build() {
   // that's what keeps a dense graph from turning into a wall of text.
   let maxDeg = 1;
   g.forEachNode((id) => (maxDeg = Math.max(maxDeg, g.degree(id))));
-  g.forEachNode((id, attr) => {
+  g.forEachNode((id) => {
     const deg = g.degree(id);
     const base = 4 + 10 * Math.sqrt(deg / maxDeg);
     g.setNodeAttribute(id, "size", id === props.focusId ? base + 6 : base);
@@ -82,7 +85,21 @@ function build() {
   });
 
   graph = g;
-  renderer = new Sigma(g, container.value, {
+  mount();
+}
+
+// mount (re)creates the Sigma renderer on the current graph. Sigma fits the
+// graph to the container size at construction, so remounting after the
+// container resizes (fullscreen toggle, Fit) reframes reliably — resize()
+// alone keeps Sigma's stale fit and jams the graph into a corner.
+function mount() {
+  if (renderer) {
+    renderer.kill();
+    renderer = null;
+  }
+  if (!graph || !container.value) return;
+  hovered = null;
+  renderer = new Sigma(graph, container.value, {
     renderEdgeLabels: false,
     defaultEdgeType: "arrow",
     labelColor: { color: "#c9d1d9" },
@@ -121,16 +138,29 @@ function edgeReducer(edge, data) {
   return { ...data, hidden: true };
 }
 
+// Container resized (expand/shrink): Sigma mis-scales when reused across a
+// resize, so rebuild from scratch once the container has settled at its new
+// size — a fresh Sigma fits correctly.
+function reframe() {
+  nextTick(() => requestAnimationFrame(build));
+}
+// Fit just recenters/re-zooms the current layout in place — no relayout.
 function fit() {
   if (renderer) renderer.getCamera().animatedReset();
 }
-function toggleMax() {
-  maximized.value = !maximized.value;
-  // The container resized — let Sigma re-measure, then reframe.
-  nextTick(() => renderer && (renderer.refresh(), fit()));
+// Expand the graph to near-full-viewport height in normal document flow. Kept
+// out of position:fixed / the Fullscreen API on purpose: Sigma refits cleanly
+// when its container resizes via normal layout + a remount, but mis-scales in a
+// fixed overlay. Scroll it into view so the taller graph is fully visible.
+function toggleExpand() {
+  expanded.value = !expanded.value;
+  reframe();
+  if (expanded.value) {
+    nextTick(() => wrapEl.value?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 }
 function onKey(e) {
-  if (e.key === "Escape" && maximized.value) toggleMax();
+  if (e.key === "Escape" && expanded.value) toggleExpand();
 }
 
 onMounted(() => {
@@ -145,13 +175,13 @@ watch(() => [props.nodes, props.focusId], build, { deep: false });
 </script>
 
 <template>
-  <div class="graphwrap" :class="{ max: maximized }">
+  <div ref="wrapEl" class="graphwrap" :class="{ expanded }">
     <div ref="container" class="canvas"></div>
 
     <div v-if="nodes.length" class="controls">
       <button title="Fit graph to view" @click="fit">⤾ Fit</button>
-      <button :title="maximized ? 'Exit fullscreen (Esc)' : 'Fullscreen'" @click="toggleMax">
-        {{ maximized ? "✕ Close" : "⤢ Fullscreen" }}
+      <button :title="expanded ? 'Shrink graph (Esc)' : 'Expand graph'" @click="toggleExpand">
+        {{ expanded ? "⤡ Shrink" : "⤢ Expand" }}
       </button>
     </div>
 
@@ -169,14 +199,9 @@ watch(() => [props.nodes, props.focusId], build, { deep: false });
   background: #0d1117;
   overflow: hidden;
 }
-/* Fullscreen: cover the viewport, above everything, no rounded corners. */
-.graphwrap.max {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  height: 100vh;
-  border: 0;
-  border-radius: 0;
+/* Expanded: near-full-viewport, still in normal flow so Sigma refits cleanly. */
+.graphwrap.expanded {
+  height: calc(100vh - 32px);
 }
 .canvas { position: absolute; inset: 0; }
 .controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }
