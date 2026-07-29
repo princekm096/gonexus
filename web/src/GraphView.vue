@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import Graph from "graphology";
 import Sigma from "sigma";
+import { EdgeArrowProgram } from "sigma/rendering";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 
 const props = defineProps({
@@ -32,10 +33,10 @@ const KIND_COLOR = {
   const: "#a5d6ff",
 };
 const EDGE_COLOR = {
-  calls: "#30414d",
-  implements: "#8957e5",
-  imports: "#3d3d3d",
-  defines: "#21262d",
+  calls: "#5b6b7d",
+  implements: "#a371f7",
+  imports: "#6e7681",
+  defines: "#4b5563",
 };
 const DIM = "#22272e"; // faded color for nodes/edges outside the hovered neighborhood
 
@@ -61,7 +62,7 @@ function build() {
   }
   for (const e of props.edges) {
     if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) {
-      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#30414d", size: 1 });
+      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#5b6b7d", size: 2 });
     }
   }
 
@@ -102,6 +103,9 @@ function mount() {
   renderer = new Sigma(graph, container.value, {
     renderEdgeLabels: false,
     defaultEdgeType: "arrow",
+    // Sigma v3 doesn't register the arrow program by default, so "arrow" silently
+    // fell back to plain lines — register it so edges show direction.
+    edgeProgramClasses: { arrow: EdgeArrowProgram },
     labelColor: { color: "#c9d1d9" },
     labelDensity: 0.35,
     labelGridCellSize: 80,
