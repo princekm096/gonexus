@@ -62,7 +62,7 @@ function build() {
   }
   for (const e of props.edges) {
     if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) {
-      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#5b6b7d", size: 2 });
+      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#5b6b7d", size: 4 });
     }
   }
 
