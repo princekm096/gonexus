@@ -50,6 +50,11 @@ service GoNexusService {
   rpc Ask(AskRequest) returns (AskResponse) {}
   // ShapeCheck validates consumer property access against provider type shapes.
   rpc ShapeCheck(ShapeCheckRequest) returns (ShapeCheckResponse) {}
+  // Graph returns the whole repo graph (capped) for the always-on explorer.
+  rpc Graph(GraphRequest) returns (GraphResponse) {}
+  // Source returns the source code of a symbol (resolved from its own node,
+  // never a client-supplied path), for the code inspector.
+  rpc Source(SourceRequest) returns (SourceResponse) {}
 }
 
 // repo names which registered repository a query targets. Empty selects the
@@ -128,6 +133,29 @@ message SubgraphRequest {
 message SubgraphResponse {
   repeated Node nodes = 1;
   repeated Edge edges = 2;
+}
+
+message GraphRequest {
+  string repo = 1;
+  int32 limit = 2; // max nodes; 0 = default cap. Highest-degree nodes kept.
+}
+message GraphResponse {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+  bool truncated = 3; // true if the graph exceeded the cap and was trimmed
+}
+
+message SourceRequest {
+  string id = 1;   // node id; the server reads that node's own file
+  string repo = 2;
+  int32 before = 3; // context lines before the symbol (default 3)
+  int32 after = 4;  // context lines after the symbol (default 120)
+}
+message SourceResponse {
+  string file = 1;
+  int32 start_line = 2; // 1-based line number of the first returned line
+  string code = 3;
+  string lang = 4; // language hint from the file extension (e.g. "go", "ts")
 }
 
 message ReposRequest {}

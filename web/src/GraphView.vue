@@ -9,17 +9,21 @@ const props = defineProps({
   nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },
   focusId: { type: String, default: "" },
+  // kind -> true means "hidden". Absent/false = visible.
+  hiddenKinds: { type: Object, default: () => ({}) },
+  // 0 = show all; N = show only nodes within N hops of the focused node.
+  focusDepth: { type: Number, default: 0 },
+  // parent-controlled: graph fills the whole workspace (side panels hidden).
+  maximized: { type: Boolean, default: false },
 });
-const emit = defineEmits(["select"]);
+const emit = defineEmits(["select", "toggle-max"]);
 
 const container = ref(null);
-const wrapEl = ref(null);
-const expanded = ref(false); // grow the graph to near-full-viewport height
 let renderer = null;
 let graph = null;
-let hovered = null; // currently hovered node id (drives the highlight reducers)
+let hovered = null; // hovered node id (drives the highlight reducers)
+let depthSet = null; // Set of ids within focusDepth of focusId, or null = all
 
-// Node fill by kind; edges tinted by relationship.
 const KIND_COLOR = {
   func: "#58a6ff",
   method: "#79c0ff",
@@ -38,9 +42,9 @@ const EDGE_COLOR = {
   imports: "#6e7681",
   defines: "#4b5563",
 };
-const DIM = "#22272e"; // faded color for nodes/edges outside the hovered neighborhood
+const DIM = "#22272e";
 
-// build lays out the graph (graphology + ForceAtlas2) once per data change.
+// build lays out the whole graph (graphology + ForceAtlas2) once per data change.
 function build() {
   if (renderer) {
     renderer.kill();
@@ -55,44 +59,40 @@ function build() {
     g.mergeNode(n.id, {
       label: n.name || n.id,
       kind: n.kind,
-      color: n.id === props.focusId ? "#ffffff" : KIND_COLOR[n.kind] || "#8b949e",
+      color: KIND_COLOR[n.kind] || "#8b949e",
       x: Math.random(),
       y: Math.random(),
     });
   }
   for (const e of props.edges) {
     if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) {
-      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#5b6b7d", size: 4 });
+      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#5b6b7d", size: 3 });
     }
   }
 
-  // Size by degree so hubs read as hubs; the focus node stays largest. Labels
-  // are gated on rendered size, so only the important nodes label by default —
-  // that's what keeps a dense graph from turning into a wall of text.
+  // Size by degree so hubs read as hubs; labels are gated on rendered size so a
+  // dense graph doesn't turn into a wall of text.
   let maxDeg = 1;
   g.forEachNode((id) => (maxDeg = Math.max(maxDeg, g.degree(id))));
   g.forEachNode((id) => {
     const deg = g.degree(id);
-    const base = 4 + 10 * Math.sqrt(deg / maxDeg);
-    g.setNodeAttribute(id, "size", id === props.focusId ? base + 6 : base);
+    g.setNodeAttribute(id, "size", 3 + 9 * Math.sqrt(deg / maxDeg));
   });
 
-  // inferSettings tunes gravity/scaling to the graph's size; more iterations for
-  // bigger graphs, Barnes-Hut so it stays fast when dense.
   const settings = forceAtlas2.inferSettings(g);
   forceAtlas2.assign(g, {
-    iterations: Math.min(600, 150 + g.order),
+    iterations: Math.min(600, 120 + g.order),
     settings: { ...settings, barnesHutOptimize: g.order > 150, adjustSizes: true },
   });
 
   graph = g;
+  recomputeDepth();
   mount();
 }
 
-// mount (re)creates the Sigma renderer on the current graph. Sigma fits the
-// graph to the container size at construction, so remounting after the
-// container resizes (fullscreen toggle, Fit) reframes reliably — resize()
-// alone keeps Sigma's stale fit and jams the graph into a corner.
+// mount (re)creates the Sigma renderer. Sigma fits the graph to the container at
+// construction, so remounting after the container resizes reframes reliably —
+// resize() alone keeps Sigma's stale fit and jams the graph into a corner.
 function mount() {
   if (renderer) {
     renderer.kill();
@@ -101,15 +101,14 @@ function mount() {
   if (!graph || !container.value) return;
   hovered = null;
   renderer = new Sigma(graph, container.value, {
+    allowInvalidContainer: true, // tolerate a not-yet-laid-out grid cell
     renderEdgeLabels: false,
     defaultEdgeType: "arrow",
-    // Sigma v3 doesn't register the arrow program by default, so "arrow" silently
-    // fell back to plain lines — register it so edges show direction.
-    edgeProgramClasses: { arrow: EdgeArrowProgram },
+    edgeProgramClasses: { arrow: EdgeArrowProgram }, // v3 doesn't register it by default
     labelColor: { color: "#c9d1d9" },
     labelDensity: 0.35,
     labelGridCellSize: 80,
-    labelRenderedSizeThreshold: 11, // only bigger (higher-degree) nodes label
+    labelRenderedSizeThreshold: 10,
     zIndex: true,
     nodeReducer,
     edgeReducer,
@@ -125,87 +124,114 @@ function mount() {
   });
 }
 
-// When a node is hovered, spotlight it + its direct neighbors and fade the rest.
-// This is the single biggest readability win on a dense graph: you see one
-// symbol's actual connections instead of the whole hairball at once.
-function nodeReducer(id, data) {
-  if (!hovered) return data;
-  if (id === hovered || graph.areNeighbors(hovered, id)) {
-    return { ...data, zIndex: 1, forceLabel: true };
+// recomputeDepth builds the set of ids within focusDepth hops of the focused
+// node (undirected BFS). Null when no focus or depth 0 = everything visible.
+function recomputeDepth() {
+  depthSet = null;
+  if (!graph || !props.focusDepth || !props.focusId || !graph.hasNode(props.focusId)) return;
+  const seen = new Set([props.focusId]);
+  let frontier = [props.focusId];
+  for (let d = 0; d < props.focusDepth; d++) {
+    const next = [];
+    for (const cur of frontier) {
+      graph.forEachNeighbor(cur, (nb) => {
+        if (!seen.has(nb)) {
+          seen.add(nb);
+          next.push(nb);
+        }
+      });
+    }
+    frontier = next;
   }
-  return { ...data, color: DIM, label: "", zIndex: 0 };
-}
-function edgeReducer(edge, data) {
-  if (!hovered) return data;
-  const [s, t] = graph.extremities(edge);
-  if (s === hovered || t === hovered) return { ...data, color: "#4b5563", zIndex: 1 };
-  return { ...data, hidden: true };
+  depthSet = seen;
 }
 
-// Container resized (expand/shrink): Sigma mis-scales when reused across a
-// resize, so rebuild from scratch once the container has settled at its new
-// size — a fresh Sigma fits correctly.
+// visible applies the sidebar filters: node-type toggles + focus-depth.
+function visible(id, kind) {
+  if (props.hiddenKinds[kind]) return false;
+  if (depthSet && !depthSet.has(id)) return false;
+  return true;
+}
+
+function nodeReducer(id, data) {
+  if (!visible(id, data.kind)) return { ...data, hidden: true };
+  const isFocus = id === props.focusId;
+  if (hovered) {
+    if (id === hovered || graph.areNeighbors(hovered, id)) {
+      return { ...data, zIndex: 1, forceLabel: true, color: isFocus ? "#ffffff" : data.color };
+    }
+    return { ...data, color: DIM, label: "", zIndex: 0 };
+  }
+  if (isFocus) return { ...data, color: "#ffffff", zIndex: 1, forceLabel: true, size: data.size + 4 };
+  return data;
+}
+function edgeReducer(edge, data) {
+  const [s, t] = graph.extremities(edge);
+  const sd = graph.getNodeAttribute(s, "kind"),
+    td = graph.getNodeAttribute(t, "kind");
+  if (!visible(s, sd) || !visible(t, td)) return { ...data, hidden: true };
+  if (hovered) {
+    if (s === hovered || t === hovered) return { ...data, color: "#788aa0", zIndex: 1 };
+    return { ...data, hidden: true };
+  }
+  return data;
+}
+
+// Container resized (maximize toggle): rebuild so a fresh Sigma fits the new size.
 function reframe() {
   nextTick(() => requestAnimationFrame(build));
 }
-// Fit just recenters/re-zooms the current layout in place — no relayout.
 function fit() {
   if (renderer) renderer.getCamera().animatedReset();
 }
-// Expand the graph to near-full-viewport height in normal document flow. Kept
-// out of position:fixed / the Fullscreen API on purpose: Sigma refits cleanly
-// when its container resizes via normal layout + a remount, but mis-scales in a
-// fixed overlay. Scroll it into view so the taller graph is fully visible.
-function toggleExpand() {
-  expanded.value = !expanded.value;
-  reframe();
-  if (expanded.value) {
-    nextTick(() => wrapEl.value?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-}
 function onKey(e) {
-  if (e.key === "Escape" && expanded.value) toggleExpand();
+  if (e.key === "Escape" && props.maximized) emit("toggle-max");
 }
 
 onMounted(() => {
-  build();
+  reframe(); // defer to after layout so the grid cell has a real width
   window.addEventListener("keydown", onKey);
 });
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
   renderer && renderer.kill();
 });
-watch(() => [props.nodes, props.focusId], build, { deep: false });
+// Rebuild on data change; just refresh reducers on filter change; reframe on resize.
+watch(() => props.nodes, reframe, { deep: false });
+watch(
+  () => [props.hiddenKinds, props.focusId, props.focusDepth],
+  () => {
+    recomputeDepth();
+    renderer && renderer.refresh();
+  },
+  { deep: true },
+);
+watch(() => props.maximized, reframe);
 </script>
 
 <template>
-  <div ref="wrapEl" class="graphwrap" :class="{ expanded }">
+  <div class="graphwrap">
     <div ref="container" class="canvas"></div>
 
     <div v-if="nodes.length" class="controls">
       <button title="Fit graph to view" @click="fit">⤾ Fit</button>
-      <button :title="expanded ? 'Shrink graph (Esc)' : 'Expand graph'" @click="toggleExpand">
-        {{ expanded ? "⤡ Shrink" : "⤢ Expand" }}
+      <button :title="maximized ? 'Restore panels (Esc)' : 'Maximize graph'" @click="emit('toggle-max')">
+        {{ maximized ? "⤡ Restore" : "⤢ Maximize" }}
       </button>
     </div>
 
-    <p v-if="nodes.length" class="tip">hover a node to isolate its connections · scroll to zoom · drag to pan</p>
-    <p v-if="!nodes.length" class="hint">select a symbol to see its neighborhood</p>
+    <p v-if="nodes.length" class="tip">click a node to inspect · hover to isolate · scroll to zoom · drag to pan</p>
+    <p v-else class="hint">indexing… or pick a repo to load its graph</p>
   </div>
 </template>
 
 <style scoped>
 .graphwrap {
   position: relative;
-  height: 72vh;
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  background: #0d1117;
+  height: 100%;
+  width: 100%;
+  background: #0b0e13;
   overflow: hidden;
-}
-/* Expanded: near-full-viewport, still in normal flow so Sigma refits cleanly. */
-.graphwrap.expanded {
-  height: calc(100vh - 32px);
 }
 .canvas { position: absolute; inset: 0; }
 .controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }

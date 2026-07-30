@@ -79,6 +79,10 @@ const (
 	// GoNexusServiceShapeCheckProcedure is the fully-qualified name of the GoNexusService's ShapeCheck
 	// RPC.
 	GoNexusServiceShapeCheckProcedure = "/gonexus.v1.GoNexusService/ShapeCheck"
+	// GoNexusServiceGraphProcedure is the fully-qualified name of the GoNexusService's Graph RPC.
+	GoNexusServiceGraphProcedure = "/gonexus.v1.GoNexusService/Graph"
+	// GoNexusServiceSourceProcedure is the fully-qualified name of the GoNexusService's Source RPC.
+	GoNexusServiceSourceProcedure = "/gonexus.v1.GoNexusService/Source"
 )
 
 // GoNexusServiceClient is a client for the gonexus.v1.GoNexusService service.
@@ -125,6 +129,11 @@ type GoNexusServiceClient interface {
 	Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error)
 	// ShapeCheck validates consumer property access against provider type shapes.
 	ShapeCheck(context.Context, *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error)
+	// Graph returns the whole repo graph (capped) for the always-on explorer.
+	Graph(context.Context, *connect.Request[v1.GraphRequest]) (*connect.Response[v1.GraphResponse], error)
+	// Source returns the source code of a symbol (resolved from its own node,
+	// never a client-supplied path), for the code inspector.
+	Source(context.Context, *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error)
 }
 
 // NewGoNexusServiceClient constructs a client for the gonexus.v1.GoNexusService service. By
@@ -264,6 +273,18 @@ func NewGoNexusServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(goNexusServiceMethods.ByName("ShapeCheck")),
 			connect.WithClientOptions(opts...),
 		),
+		graph: connect.NewClient[v1.GraphRequest, v1.GraphResponse](
+			httpClient,
+			baseURL+GoNexusServiceGraphProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Graph")),
+			connect.WithClientOptions(opts...),
+		),
+		source: connect.NewClient[v1.SourceRequest, v1.SourceResponse](
+			httpClient,
+			baseURL+GoNexusServiceSourceProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Source")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -290,6 +311,8 @@ type goNexusServiceClient struct {
 	apiImpact     *connect.Client[v1.ApiImpactRequest, v1.ApiImpactResponse]
 	ask           *connect.Client[v1.AskRequest, v1.AskResponse]
 	shapeCheck    *connect.Client[v1.ShapeCheckRequest, v1.ShapeCheckResponse]
+	graph         *connect.Client[v1.GraphRequest, v1.GraphResponse]
+	source        *connect.Client[v1.SourceRequest, v1.SourceResponse]
 }
 
 // Index calls gonexus.v1.GoNexusService.Index.
@@ -397,6 +420,16 @@ func (c *goNexusServiceClient) ShapeCheck(ctx context.Context, req *connect.Requ
 	return c.shapeCheck.CallUnary(ctx, req)
 }
 
+// Graph calls gonexus.v1.GoNexusService.Graph.
+func (c *goNexusServiceClient) Graph(ctx context.Context, req *connect.Request[v1.GraphRequest]) (*connect.Response[v1.GraphResponse], error) {
+	return c.graph.CallUnary(ctx, req)
+}
+
+// Source calls gonexus.v1.GoNexusService.Source.
+func (c *goNexusServiceClient) Source(ctx context.Context, req *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error) {
+	return c.source.CallUnary(ctx, req)
+}
+
 // GoNexusServiceHandler is an implementation of the gonexus.v1.GoNexusService service.
 type GoNexusServiceHandler interface {
 	// Index parses a repo into the graph and persists it.
@@ -441,6 +474,11 @@ type GoNexusServiceHandler interface {
 	Ask(context.Context, *connect.Request[v1.AskRequest]) (*connect.Response[v1.AskResponse], error)
 	// ShapeCheck validates consumer property access against provider type shapes.
 	ShapeCheck(context.Context, *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error)
+	// Graph returns the whole repo graph (capped) for the always-on explorer.
+	Graph(context.Context, *connect.Request[v1.GraphRequest]) (*connect.Response[v1.GraphResponse], error)
+	// Source returns the source code of a symbol (resolved from its own node,
+	// never a client-supplied path), for the code inspector.
+	Source(context.Context, *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error)
 }
 
 // NewGoNexusServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -576,6 +614,18 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 		connect.WithSchema(goNexusServiceMethods.ByName("ShapeCheck")),
 		connect.WithHandlerOptions(opts...),
 	)
+	goNexusServiceGraphHandler := connect.NewUnaryHandler(
+		GoNexusServiceGraphProcedure,
+		svc.Graph,
+		connect.WithSchema(goNexusServiceMethods.ByName("Graph")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceSourceHandler := connect.NewUnaryHandler(
+		GoNexusServiceSourceProcedure,
+		svc.Source,
+		connect.WithSchema(goNexusServiceMethods.ByName("Source")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/gonexus.v1.GoNexusService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GoNexusServiceIndexProcedure:
@@ -620,6 +670,10 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 			goNexusServiceAskHandler.ServeHTTP(w, r)
 		case GoNexusServiceShapeCheckProcedure:
 			goNexusServiceShapeCheckHandler.ServeHTTP(w, r)
+		case GoNexusServiceGraphProcedure:
+			goNexusServiceGraphHandler.ServeHTTP(w, r)
+		case GoNexusServiceSourceProcedure:
+			goNexusServiceSourceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -711,4 +765,12 @@ func (UnimplementedGoNexusServiceHandler) Ask(context.Context, *connect.Request[
 
 func (UnimplementedGoNexusServiceHandler) ShapeCheck(context.Context, *connect.Request[v1.ShapeCheckRequest]) (*connect.Response[v1.ShapeCheckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.ShapeCheck is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Graph(context.Context, *connect.Request[v1.GraphRequest]) (*connect.Response[v1.GraphResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Graph is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Source(context.Context, *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Source is not implemented"))
 }

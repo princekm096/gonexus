@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -515,6 +516,131 @@ func neighborhood(g *graph.Graph, id string, depth int) ([]*graph.Node, []graph.
 		}
 	}
 	return nodes, edges
+}
+
+// Graph returns the whole repo graph, capped to keep the payload sane. Over the
+// cap, the highest-degree nodes are kept (the ones worth seeing) and only edges
+// between kept nodes are returned.
+func (s *Server) Graph(ctx context.Context, req *connect.Request[v1.GraphRequest]) (*connect.Response[v1.GraphResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	limit := int(req.Msg.Limit)
+	if limit <= 0 {
+		limit = 1500
+	}
+	deg := make(map[string]int, len(g.Nodes))
+	for _, e := range g.Edges {
+		deg[e.From]++
+		deg[e.To]++
+	}
+	ids := make([]string, 0, len(g.Nodes))
+	for id := range g.Nodes {
+		ids = append(ids, id)
+	}
+	truncated := false
+	if len(ids) > limit {
+		sort.Slice(ids, func(i, j int) bool { return deg[ids[i]] > deg[ids[j]] })
+		ids = ids[:limit]
+		truncated = true
+	}
+	keep := make(map[string]bool, len(ids))
+	nodes := make([]*graph.Node, 0, len(ids))
+	for _, id := range ids {
+		keep[id] = true
+		nodes = append(nodes, g.Nodes[id])
+	}
+	var edges []graph.Edge
+	for _, e := range g.Edges {
+		if keep[e.From] && keep[e.To] {
+			edges = append(edges, e)
+		}
+	}
+	return connect.NewResponse(&v1.GraphResponse{
+		Nodes: toNodes(nodes), Edges: toEdges(edges), Truncated: truncated,
+	}), nil
+}
+
+// Source returns source code around a symbol. The file comes from the symbol's
+// own node (never a client-supplied path) and must resolve within the repo
+// root, so this can't read arbitrary files off the host.
+func (s *Server) Source(ctx context.Context, req *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error) {
+	g, err := s.graphFor(req.Msg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	n := g.Nodes[req.Msg.Id]
+	if n == nil || n.File == "" {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no source for %q", req.Msg.Id))
+	}
+	repo, err := s.store.Repo(req.Msg.Repo)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	root, _ := filepath.Abs(repo.Path)
+	file, _ := filepath.Abs(n.File)
+	if !within(root, file) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("file outside repo root"))
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	lines := strings.Split(string(data), "\n")
+	before, after := int(req.Msg.Before), int(req.Msg.After)
+	if before < 0 || before > 50 {
+		before = 3
+	}
+	if after <= 0 || after > 400 {
+		after = 120
+	}
+	start := n.Line - before
+	if n.Line == 0 { // no line info: show the file head
+		start = 1
+	}
+	if start < 1 {
+		start = 1
+	}
+	end := n.Line + after
+	if n.Line == 0 {
+		end = after
+	}
+	if end > len(lines) {
+		end = len(lines)
+	}
+	code := strings.Join(lines[start-1:end], "\n")
+	return connect.NewResponse(&v1.SourceResponse{
+		File: file, StartLine: int32(start), Code: code, Lang: langOf(file),
+	}), nil
+}
+
+// within reports whether path is inside root (after cleaning), used to keep
+// Source from escaping the repo directory.
+func within(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func langOf(file string) string {
+	switch strings.ToLower(filepath.Ext(file)) {
+	case ".go":
+		return "go"
+	case ".ts", ".tsx":
+		return "typescript"
+	case ".js", ".jsx", ".mjs":
+		return "javascript"
+	case ".vue":
+		return "vue"
+	case ".py":
+		return "python"
+	case ".md":
+		return "markdown"
+	case ".json":
+		return "json"
+	default:
+		return ""
+	}
 }
 
 // ---- mappers ----

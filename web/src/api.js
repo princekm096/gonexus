@@ -24,4 +24,6 @@ export const api = {
   impact: (id, repo) => call("Impact", { id, repo }),
   trace: (from, to, repo) => call("Trace", { from, to, repo }),
   subgraph: (id, repo, depth = 1) => call("Subgraph", { id, repo, depth }),
+  graph: (repo, limit = 1500) => call("Graph", { repo, limit }),
+  source: (id, repo, before = 3, after = 120) => call("Source", { id, repo, before, after }),
 };

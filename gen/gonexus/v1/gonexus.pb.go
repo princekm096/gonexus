@@ -889,6 +889,254 @@ func (x *SubgraphResponse) GetEdges() []*Edge {
 	return nil
 }
 
+type GraphRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repo          string                 `protobuf:"bytes,1,opt,name=repo,proto3" json:"repo,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"` // max nodes; 0 = default cap. Highest-degree nodes kept.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GraphRequest) Reset() {
+	*x = GraphRequest{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GraphRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GraphRequest) ProtoMessage() {}
+
+func (x *GraphRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GraphRequest.ProtoReflect.Descriptor instead.
+func (*GraphRequest) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GraphRequest) GetRepo() string {
+	if x != nil {
+		return x.Repo
+	}
+	return ""
+}
+
+func (x *GraphRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type GraphResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Nodes         []*Node                `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	Edges         []*Edge                `protobuf:"bytes,2,rep,name=edges,proto3" json:"edges,omitempty"`
+	Truncated     bool                   `protobuf:"varint,3,opt,name=truncated,proto3" json:"truncated,omitempty"` // true if the graph exceeded the cap and was trimmed
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GraphResponse) Reset() {
+	*x = GraphResponse{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GraphResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GraphResponse) ProtoMessage() {}
+
+func (x *GraphResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GraphResponse.ProtoReflect.Descriptor instead.
+func (*GraphResponse) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GraphResponse) GetNodes() []*Node {
+	if x != nil {
+		return x.Nodes
+	}
+	return nil
+}
+
+func (x *GraphResponse) GetEdges() []*Edge {
+	if x != nil {
+		return x.Edges
+	}
+	return nil
+}
+
+func (x *GraphResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+type SourceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // node id; the server reads that node's own file
+	Repo          string                 `protobuf:"bytes,2,opt,name=repo,proto3" json:"repo,omitempty"`
+	Before        int32                  `protobuf:"varint,3,opt,name=before,proto3" json:"before,omitempty"` // context lines before the symbol (default 3)
+	After         int32                  `protobuf:"varint,4,opt,name=after,proto3" json:"after,omitempty"`   // context lines after the symbol (default 120)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SourceRequest) Reset() {
+	*x = SourceRequest{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SourceRequest) ProtoMessage() {}
+
+func (x *SourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SourceRequest.ProtoReflect.Descriptor instead.
+func (*SourceRequest) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *SourceRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SourceRequest) GetRepo() string {
+	if x != nil {
+		return x.Repo
+	}
+	return ""
+}
+
+func (x *SourceRequest) GetBefore() int32 {
+	if x != nil {
+		return x.Before
+	}
+	return 0
+}
+
+func (x *SourceRequest) GetAfter() int32 {
+	if x != nil {
+		return x.After
+	}
+	return 0
+}
+
+type SourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	File          string                 `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
+	StartLine     int32                  `protobuf:"varint,2,opt,name=start_line,json=startLine,proto3" json:"start_line,omitempty"` // 1-based line number of the first returned line
+	Code          string                 `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
+	Lang          string                 `protobuf:"bytes,4,opt,name=lang,proto3" json:"lang,omitempty"` // language hint from the file extension (e.g. "go", "ts")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SourceResponse) Reset() {
+	*x = SourceResponse{}
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SourceResponse) ProtoMessage() {}
+
+func (x *SourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SourceResponse.ProtoReflect.Descriptor instead.
+func (*SourceResponse) Descriptor() ([]byte, []int) {
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SourceResponse) GetFile() string {
+	if x != nil {
+		return x.File
+	}
+	return ""
+}
+
+func (x *SourceResponse) GetStartLine() int32 {
+	if x != nil {
+		return x.StartLine
+	}
+	return 0
+}
+
+func (x *SourceResponse) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *SourceResponse) GetLang() string {
+	if x != nil {
+		return x.Lang
+	}
+	return ""
+}
+
 type ReposRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -897,7 +1145,7 @@ type ReposRequest struct {
 
 func (x *ReposRequest) Reset() {
 	*x = ReposRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[15]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -909,7 +1157,7 @@ func (x *ReposRequest) String() string {
 func (*ReposRequest) ProtoMessage() {}
 
 func (x *ReposRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[15]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -922,7 +1170,7 @@ func (x *ReposRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReposRequest.ProtoReflect.Descriptor instead.
 func (*ReposRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{15}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{19}
 }
 
 type Repo struct {
@@ -937,7 +1185,7 @@ type Repo struct {
 
 func (x *Repo) Reset() {
 	*x = Repo{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[16]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -949,7 +1197,7 @@ func (x *Repo) String() string {
 func (*Repo) ProtoMessage() {}
 
 func (x *Repo) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[16]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -962,7 +1210,7 @@ func (x *Repo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Repo.ProtoReflect.Descriptor instead.
 func (*Repo) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{16}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Repo) GetName() string {
@@ -1002,7 +1250,7 @@ type ReposResponse struct {
 
 func (x *ReposResponse) Reset() {
 	*x = ReposResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[17]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1014,7 +1262,7 @@ func (x *ReposResponse) String() string {
 func (*ReposResponse) ProtoMessage() {}
 
 func (x *ReposResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[17]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1027,7 +1275,7 @@ func (x *ReposResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReposResponse.ProtoReflect.Descriptor instead.
 func (*ReposResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{17}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ReposResponse) GetRepos() []*Repo {
@@ -1046,7 +1294,7 @@ type EntryPointsRequest struct {
 
 func (x *EntryPointsRequest) Reset() {
 	*x = EntryPointsRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[18]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1058,7 +1306,7 @@ func (x *EntryPointsRequest) String() string {
 func (*EntryPointsRequest) ProtoMessage() {}
 
 func (x *EntryPointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[18]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1071,7 +1319,7 @@ func (x *EntryPointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntryPointsRequest.ProtoReflect.Descriptor instead.
 func (*EntryPointsRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{18}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *EntryPointsRequest) GetRepo() string {
@@ -1091,7 +1339,7 @@ type EntryPoint struct {
 
 func (x *EntryPoint) Reset() {
 	*x = EntryPoint{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[19]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1103,7 +1351,7 @@ func (x *EntryPoint) String() string {
 func (*EntryPoint) ProtoMessage() {}
 
 func (x *EntryPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[19]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1116,7 +1364,7 @@ func (x *EntryPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntryPoint.ProtoReflect.Descriptor instead.
 func (*EntryPoint) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{19}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *EntryPoint) GetNode() *Node {
@@ -1142,7 +1390,7 @@ type EntryPointsResponse struct {
 
 func (x *EntryPointsResponse) Reset() {
 	*x = EntryPointsResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[20]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1154,7 +1402,7 @@ func (x *EntryPointsResponse) String() string {
 func (*EntryPointsResponse) ProtoMessage() {}
 
 func (x *EntryPointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[20]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1167,7 +1415,7 @@ func (x *EntryPointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntryPointsResponse.ProtoReflect.Descriptor instead.
 func (*EntryPointsResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{20}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *EntryPointsResponse) GetEntries() []*EntryPoint {
@@ -1187,7 +1435,7 @@ type ProcessRequest struct {
 
 func (x *ProcessRequest) Reset() {
 	*x = ProcessRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[21]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1199,7 +1447,7 @@ func (x *ProcessRequest) String() string {
 func (*ProcessRequest) ProtoMessage() {}
 
 func (x *ProcessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[21]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1212,7 +1460,7 @@ func (x *ProcessRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessRequest.ProtoReflect.Descriptor instead.
 func (*ProcessRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{21}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ProcessRequest) GetId() string {
@@ -1239,7 +1487,7 @@ type ProcessResponse struct {
 
 func (x *ProcessResponse) Reset() {
 	*x = ProcessResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[22]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1251,7 +1499,7 @@ func (x *ProcessResponse) String() string {
 func (*ProcessResponse) ProtoMessage() {}
 
 func (x *ProcessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[22]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1264,7 +1512,7 @@ func (x *ProcessResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessResponse.ProtoReflect.Descriptor instead.
 func (*ProcessResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{22}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ProcessResponse) GetNodes() []*Node {
@@ -1290,7 +1538,7 @@ type ClustersRequest struct {
 
 func (x *ClustersRequest) Reset() {
 	*x = ClustersRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[23]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1302,7 +1550,7 @@ func (x *ClustersRequest) String() string {
 func (*ClustersRequest) ProtoMessage() {}
 
 func (x *ClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[23]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1315,7 +1563,7 @@ func (x *ClustersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClustersRequest.ProtoReflect.Descriptor instead.
 func (*ClustersRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{23}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ClustersRequest) GetRepo() string {
@@ -1337,7 +1585,7 @@ type Cluster struct {
 
 func (x *Cluster) Reset() {
 	*x = Cluster{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[24]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1349,7 +1597,7 @@ func (x *Cluster) String() string {
 func (*Cluster) ProtoMessage() {}
 
 func (x *Cluster) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[24]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1362,7 +1610,7 @@ func (x *Cluster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cluster.ProtoReflect.Descriptor instead.
 func (*Cluster) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{24}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Cluster) GetId() string {
@@ -1402,7 +1650,7 @@ type ClustersResponse struct {
 
 func (x *ClustersResponse) Reset() {
 	*x = ClustersResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[25]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1414,7 +1662,7 @@ func (x *ClustersResponse) String() string {
 func (*ClustersResponse) ProtoMessage() {}
 
 func (x *ClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[25]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1427,7 +1675,7 @@ func (x *ClustersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClustersResponse.ProtoReflect.Descriptor instead.
 func (*ClustersResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{25}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ClustersResponse) GetClusters() []*Cluster {
@@ -1447,7 +1695,7 @@ type DetectChangesRequest struct {
 
 func (x *DetectChangesRequest) Reset() {
 	*x = DetectChangesRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[26]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1459,7 +1707,7 @@ func (x *DetectChangesRequest) String() string {
 func (*DetectChangesRequest) ProtoMessage() {}
 
 func (x *DetectChangesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[26]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1472,7 +1720,7 @@ func (x *DetectChangesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectChangesRequest.ProtoReflect.Descriptor instead.
 func (*DetectChangesRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{26}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DetectChangesRequest) GetRepo() string {
@@ -1499,7 +1747,7 @@ type DetectChangesResponse struct {
 
 func (x *DetectChangesResponse) Reset() {
 	*x = DetectChangesResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[27]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1511,7 +1759,7 @@ func (x *DetectChangesResponse) String() string {
 func (*DetectChangesResponse) ProtoMessage() {}
 
 func (x *DetectChangesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[27]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1524,7 +1772,7 @@ func (x *DetectChangesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectChangesResponse.ProtoReflect.Descriptor instead.
 func (*DetectChangesResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{27}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DetectChangesResponse) GetChanged() []*Node {
@@ -1553,7 +1801,7 @@ type RenameRequest struct {
 
 func (x *RenameRequest) Reset() {
 	*x = RenameRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[28]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1565,7 +1813,7 @@ func (x *RenameRequest) String() string {
 func (*RenameRequest) ProtoMessage() {}
 
 func (x *RenameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[28]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1578,7 +1826,7 @@ func (x *RenameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameRequest.ProtoReflect.Descriptor instead.
 func (*RenameRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{28}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RenameRequest) GetRepo() string {
@@ -1619,7 +1867,7 @@ type RenameEdit struct {
 
 func (x *RenameEdit) Reset() {
 	*x = RenameEdit{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[29]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1631,7 +1879,7 @@ func (x *RenameEdit) String() string {
 func (*RenameEdit) ProtoMessage() {}
 
 func (x *RenameEdit) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[29]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1644,7 +1892,7 @@ func (x *RenameEdit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameEdit.ProtoReflect.Descriptor instead.
 func (*RenameEdit) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{29}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *RenameEdit) GetFile() string {
@@ -1675,7 +1923,7 @@ type RenameResponse struct {
 
 func (x *RenameResponse) Reset() {
 	*x = RenameResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[30]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1687,7 +1935,7 @@ func (x *RenameResponse) String() string {
 func (*RenameResponse) ProtoMessage() {}
 
 func (x *RenameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[30]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1700,7 +1948,7 @@ func (x *RenameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameResponse.ProtoReflect.Descriptor instead.
 func (*RenameResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{30}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RenameResponse) GetOldName() string {
@@ -1754,7 +2002,7 @@ type WikiRequest struct {
 
 func (x *WikiRequest) Reset() {
 	*x = WikiRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[31]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1766,7 +2014,7 @@ func (x *WikiRequest) String() string {
 func (*WikiRequest) ProtoMessage() {}
 
 func (x *WikiRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[31]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1779,7 +2027,7 @@ func (x *WikiRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WikiRequest.ProtoReflect.Descriptor instead.
 func (*WikiRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{31}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *WikiRequest) GetRepo() string {
@@ -1798,7 +2046,7 @@ type WikiResponse struct {
 
 func (x *WikiResponse) Reset() {
 	*x = WikiResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[32]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1810,7 +2058,7 @@ func (x *WikiResponse) String() string {
 func (*WikiResponse) ProtoMessage() {}
 
 func (x *WikiResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[32]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1823,7 +2071,7 @@ func (x *WikiResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WikiResponse.ProtoReflect.Descriptor instead.
 func (*WikiResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{32}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *WikiResponse) GetMarkdown() string {
@@ -1843,7 +2091,7 @@ type ExplainRequest struct {
 
 func (x *ExplainRequest) Reset() {
 	*x = ExplainRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[33]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1855,7 +2103,7 @@ func (x *ExplainRequest) String() string {
 func (*ExplainRequest) ProtoMessage() {}
 
 func (x *ExplainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[33]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1868,7 +2116,7 @@ func (x *ExplainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExplainRequest.ProtoReflect.Descriptor instead.
 func (*ExplainRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{33}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ExplainRequest) GetRepo() string {
@@ -1897,7 +2145,7 @@ type TaintFinding struct {
 
 func (x *TaintFinding) Reset() {
 	*x = TaintFinding{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[34]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1909,7 +2157,7 @@ func (x *TaintFinding) String() string {
 func (*TaintFinding) ProtoMessage() {}
 
 func (x *TaintFinding) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[34]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1922,7 +2170,7 @@ func (x *TaintFinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaintFinding.ProtoReflect.Descriptor instead.
 func (*TaintFinding) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{34}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *TaintFinding) GetFunc() string {
@@ -1962,7 +2210,7 @@ type ExplainResponse struct {
 
 func (x *ExplainResponse) Reset() {
 	*x = ExplainResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[35]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1974,7 +2222,7 @@ func (x *ExplainResponse) String() string {
 func (*ExplainResponse) ProtoMessage() {}
 
 func (x *ExplainResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[35]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1987,7 +2235,7 @@ func (x *ExplainResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExplainResponse.ProtoReflect.Descriptor instead.
 func (*ExplainResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{35}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ExplainResponse) GetFindings() []*TaintFinding {
@@ -2007,7 +2255,7 @@ type PdgQueryRequest struct {
 
 func (x *PdgQueryRequest) Reset() {
 	*x = PdgQueryRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[36]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2019,7 +2267,7 @@ func (x *PdgQueryRequest) String() string {
 func (*PdgQueryRequest) ProtoMessage() {}
 
 func (x *PdgQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[36]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2032,7 +2280,7 @@ func (x *PdgQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PdgQueryRequest.ProtoReflect.Descriptor instead.
 func (*PdgQueryRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{36}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *PdgQueryRequest) GetRepo() string {
@@ -2059,7 +2307,7 @@ type ControlEdge struct {
 
 func (x *ControlEdge) Reset() {
 	*x = ControlEdge{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[37]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2071,7 +2319,7 @@ func (x *ControlEdge) String() string {
 func (*ControlEdge) ProtoMessage() {}
 
 func (x *ControlEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[37]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2084,7 +2332,7 @@ func (x *ControlEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlEdge.ProtoReflect.Descriptor instead.
 func (*ControlEdge) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{37}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ControlEdge) GetFrom() int32 {
@@ -2114,7 +2362,7 @@ type PdgQueryResponse struct {
 
 func (x *PdgQueryResponse) Reset() {
 	*x = PdgQueryResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[38]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2126,7 +2374,7 @@ func (x *PdgQueryResponse) String() string {
 func (*PdgQueryResponse) ProtoMessage() {}
 
 func (x *PdgQueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[38]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2139,7 +2387,7 @@ func (x *PdgQueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PdgQueryResponse.ProtoReflect.Descriptor instead.
 func (*PdgQueryResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{38}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *PdgQueryResponse) GetId() string {
@@ -2187,7 +2435,7 @@ type CheckRequest struct {
 
 func (x *CheckRequest) Reset() {
 	*x = CheckRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[39]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2199,7 +2447,7 @@ func (x *CheckRequest) String() string {
 func (*CheckRequest) ProtoMessage() {}
 
 func (x *CheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[39]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2212,7 +2460,7 @@ func (x *CheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRequest.ProtoReflect.Descriptor instead.
 func (*CheckRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{39}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *CheckRequest) GetRepo() string {
@@ -2239,7 +2487,7 @@ type CheckResponse struct {
 
 func (x *CheckResponse) Reset() {
 	*x = CheckResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[40]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2251,7 +2499,7 @@ func (x *CheckResponse) String() string {
 func (*CheckResponse) ProtoMessage() {}
 
 func (x *CheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[40]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2264,7 +2512,7 @@ func (x *CheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckResponse.ProtoReflect.Descriptor instead.
 func (*CheckResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{40}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *CheckResponse) GetMissing() []string {
@@ -2292,7 +2540,7 @@ type CypherRequest struct {
 
 func (x *CypherRequest) Reset() {
 	*x = CypherRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[41]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2304,7 +2552,7 @@ func (x *CypherRequest) String() string {
 func (*CypherRequest) ProtoMessage() {}
 
 func (x *CypherRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[41]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2317,7 +2565,7 @@ func (x *CypherRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CypherRequest.ProtoReflect.Descriptor instead.
 func (*CypherRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{41}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CypherRequest) GetRepo() string {
@@ -2350,7 +2598,7 @@ type CypherResponse struct {
 
 func (x *CypherResponse) Reset() {
 	*x = CypherResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[42]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2362,7 +2610,7 @@ func (x *CypherResponse) String() string {
 func (*CypherResponse) ProtoMessage() {}
 
 func (x *CypherResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[42]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2375,7 +2623,7 @@ func (x *CypherResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CypherResponse.ProtoReflect.Descriptor instead.
 func (*CypherResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{42}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *CypherResponse) GetEdges() []*Edge {
@@ -2396,7 +2644,7 @@ type Route struct {
 
 func (x *Route) Reset() {
 	*x = Route{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[43]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2408,7 +2656,7 @@ func (x *Route) String() string {
 func (*Route) ProtoMessage() {}
 
 func (x *Route) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[43]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2421,7 +2669,7 @@ func (x *Route) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Route.ProtoReflect.Descriptor instead.
 func (*Route) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{43}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *Route) GetMethod() string {
@@ -2454,7 +2702,7 @@ type RouteMapRequest struct {
 
 func (x *RouteMapRequest) Reset() {
 	*x = RouteMapRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[44]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2466,7 +2714,7 @@ func (x *RouteMapRequest) String() string {
 func (*RouteMapRequest) ProtoMessage() {}
 
 func (x *RouteMapRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[44]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2479,7 +2727,7 @@ func (x *RouteMapRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteMapRequest.ProtoReflect.Descriptor instead.
 func (*RouteMapRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{44}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *RouteMapRequest) GetRepo() string {
@@ -2498,7 +2746,7 @@ type RouteMapResponse struct {
 
 func (x *RouteMapResponse) Reset() {
 	*x = RouteMapResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[45]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +2758,7 @@ func (x *RouteMapResponse) String() string {
 func (*RouteMapResponse) ProtoMessage() {}
 
 func (x *RouteMapResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[45]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +2771,7 @@ func (x *RouteMapResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteMapResponse.ProtoReflect.Descriptor instead.
 func (*RouteMapResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{45}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RouteMapResponse) GetRoutes() []*Route {
@@ -2543,7 +2791,7 @@ type ApiImpactRequest struct {
 
 func (x *ApiImpactRequest) Reset() {
 	*x = ApiImpactRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[46]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2555,7 +2803,7 @@ func (x *ApiImpactRequest) String() string {
 func (*ApiImpactRequest) ProtoMessage() {}
 
 func (x *ApiImpactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[46]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2568,7 +2816,7 @@ func (x *ApiImpactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApiImpactRequest.ProtoReflect.Descriptor instead.
 func (*ApiImpactRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{46}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ApiImpactRequest) GetRepo() string {
@@ -2595,7 +2843,7 @@ type RouteImpact struct {
 
 func (x *RouteImpact) Reset() {
 	*x = RouteImpact{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[47]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2607,7 +2855,7 @@ func (x *RouteImpact) String() string {
 func (*RouteImpact) ProtoMessage() {}
 
 func (x *RouteImpact) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[47]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2620,7 +2868,7 @@ func (x *RouteImpact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteImpact.ProtoReflect.Descriptor instead.
 func (*RouteImpact) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{47}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *RouteImpact) GetRoute() *Route {
@@ -2646,7 +2894,7 @@ type ApiImpactResponse struct {
 
 func (x *ApiImpactResponse) Reset() {
 	*x = ApiImpactResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[48]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2658,7 +2906,7 @@ func (x *ApiImpactResponse) String() string {
 func (*ApiImpactResponse) ProtoMessage() {}
 
 func (x *ApiImpactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[48]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2671,7 +2919,7 @@ func (x *ApiImpactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApiImpactResponse.ProtoReflect.Descriptor instead.
 func (*ApiImpactResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{48}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ApiImpactResponse) GetRoutes() []*RouteImpact {
@@ -2691,7 +2939,7 @@ type AskRequest struct {
 
 func (x *AskRequest) Reset() {
 	*x = AskRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[49]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2703,7 +2951,7 @@ func (x *AskRequest) String() string {
 func (*AskRequest) ProtoMessage() {}
 
 func (x *AskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[49]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2716,7 +2964,7 @@ func (x *AskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AskRequest.ProtoReflect.Descriptor instead.
 func (*AskRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{49}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *AskRequest) GetRepo() string {
@@ -2743,7 +2991,7 @@ type AskResponse struct {
 
 func (x *AskResponse) Reset() {
 	*x = AskResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[50]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2755,7 +3003,7 @@ func (x *AskResponse) String() string {
 func (*AskResponse) ProtoMessage() {}
 
 func (x *AskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[50]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2768,7 +3016,7 @@ func (x *AskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AskResponse.ProtoReflect.Descriptor instead.
 func (*AskResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{50}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *AskResponse) GetAnswer() string {
@@ -2794,7 +3042,7 @@ type ShapeCheckRequest struct {
 
 func (x *ShapeCheckRequest) Reset() {
 	*x = ShapeCheckRequest{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[51]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2806,7 +3054,7 @@ func (x *ShapeCheckRequest) String() string {
 func (*ShapeCheckRequest) ProtoMessage() {}
 
 func (x *ShapeCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[51]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2819,7 +3067,7 @@ func (x *ShapeCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShapeCheckRequest.ProtoReflect.Descriptor instead.
 func (*ShapeCheckRequest) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{51}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ShapeCheckRequest) GetRepo() string {
@@ -2841,7 +3089,7 @@ type ShapeFinding struct {
 
 func (x *ShapeFinding) Reset() {
 	*x = ShapeFinding{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[52]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2853,7 +3101,7 @@ func (x *ShapeFinding) String() string {
 func (*ShapeFinding) ProtoMessage() {}
 
 func (x *ShapeFinding) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[52]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2866,7 +3114,7 @@ func (x *ShapeFinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShapeFinding.ProtoReflect.Descriptor instead.
 func (*ShapeFinding) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{52}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ShapeFinding) GetObject() string {
@@ -2906,7 +3154,7 @@ type ShapeCheckResponse struct {
 
 func (x *ShapeCheckResponse) Reset() {
 	*x = ShapeCheckResponse{}
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[53]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2918,7 +3166,7 @@ func (x *ShapeCheckResponse) String() string {
 func (*ShapeCheckResponse) ProtoMessage() {}
 
 func (x *ShapeCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gonexus_v1_gonexus_proto_msgTypes[53]
+	mi := &file_gonexus_v1_gonexus_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2931,7 +3179,7 @@ func (x *ShapeCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShapeCheckResponse.ProtoReflect.Descriptor instead.
 func (*ShapeCheckResponse) Descriptor() ([]byte, []int) {
-	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{53}
+	return file_gonexus_v1_gonexus_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ShapeCheckResponse) GetFindings() []*ShapeFinding {
@@ -3004,7 +3252,25 @@ const file_gonexus_v1_gonexus_proto_rawDesc = "" +
 	"\x04repo\x18\x03 \x01(\tR\x04repo\"b\n" +
 	"\x10SubgraphResponse\x12&\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x10.gonexus.v1.NodeR\x05nodes\x12&\n" +
-	"\x05edges\x18\x02 \x03(\v2\x10.gonexus.v1.EdgeR\x05edges\"\x0e\n" +
+	"\x05edges\x18\x02 \x03(\v2\x10.gonexus.v1.EdgeR\x05edges\"8\n" +
+	"\fGraphRequest\x12\x12\n" +
+	"\x04repo\x18\x01 \x01(\tR\x04repo\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"}\n" +
+	"\rGraphResponse\x12&\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x10.gonexus.v1.NodeR\x05nodes\x12&\n" +
+	"\x05edges\x18\x02 \x03(\v2\x10.gonexus.v1.EdgeR\x05edges\x12\x1c\n" +
+	"\ttruncated\x18\x03 \x01(\bR\ttruncated\"a\n" +
+	"\rSourceRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04repo\x18\x02 \x01(\tR\x04repo\x12\x16\n" +
+	"\x06before\x18\x03 \x01(\x05R\x06before\x12\x14\n" +
+	"\x05after\x18\x04 \x01(\x05R\x05after\"k\n" +
+	"\x0eSourceResponse\x12\x12\n" +
+	"\x04file\x18\x01 \x01(\tR\x04file\x12\x1d\n" +
+	"\n" +
+	"start_line\x18\x02 \x01(\x05R\tstartLine\x12\x12\n" +
+	"\x04code\x18\x03 \x01(\tR\x04code\x12\x12\n" +
+	"\x04lang\x18\x04 \x01(\tR\x04lang\"\x0e\n" +
 	"\fReposRequest\"Z\n" +
 	"\x04Repo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
@@ -3131,7 +3397,7 @@ const file_gonexus_v1_gonexus_proto_rawDesc = "" +
 	"\x04file\x18\x03 \x01(\tR\x04file\x12\x18\n" +
 	"\aunknown\x18\x04 \x03(\tR\aunknown\"J\n" +
 	"\x12ShapeCheckResponse\x124\n" +
-	"\bfindings\x18\x01 \x03(\v2\x18.gonexus.v1.ShapeFindingR\bfindings2\xcb\v\n" +
+	"\bfindings\x18\x01 \x03(\v2\x18.gonexus.v1.ShapeFindingR\bfindings2\xce\f\n" +
 	"\x0eGoNexusService\x12>\n" +
 	"\x05Index\x12\x18.gonexus.v1.IndexRequest\x1a\x19.gonexus.v1.IndexResponse\"\x00\x12>\n" +
 	"\x05Query\x12\x18.gonexus.v1.QueryRequest\x1a\x19.gonexus.v1.QueryResponse\"\x00\x12D\n" +
@@ -3154,7 +3420,9 @@ const file_gonexus_v1_gonexus_proto_rawDesc = "" +
 	"\tApiImpact\x12\x1c.gonexus.v1.ApiImpactRequest\x1a\x1d.gonexus.v1.ApiImpactResponse\"\x00\x128\n" +
 	"\x03Ask\x12\x16.gonexus.v1.AskRequest\x1a\x17.gonexus.v1.AskResponse\"\x00\x12M\n" +
 	"\n" +
-	"ShapeCheck\x12\x1d.gonexus.v1.ShapeCheckRequest\x1a\x1e.gonexus.v1.ShapeCheckResponse\"\x00B\x9c\x01\n" +
+	"ShapeCheck\x12\x1d.gonexus.v1.ShapeCheckRequest\x1a\x1e.gonexus.v1.ShapeCheckResponse\"\x00\x12>\n" +
+	"\x05Graph\x12\x18.gonexus.v1.GraphRequest\x1a\x19.gonexus.v1.GraphResponse\"\x00\x12A\n" +
+	"\x06Source\x12\x19.gonexus.v1.SourceRequest\x1a\x1a.gonexus.v1.SourceResponse\"\x00B\x9c\x01\n" +
 	"\x0ecom.gonexus.v1B\fGonexusProtoP\x01Z3github.com/yourorg/gonexus/gen/gonexus/v1;gonexusv1\xa2\x02\x03GXX\xaa\x02\n" +
 	"Gonexus.V1\xca\x02\n" +
 	"Gonexus\\V1\xe2\x02\x16Gonexus\\V1\\GPBMetadata\xea\x02\vGonexus::V1b\x06proto3"
@@ -3171,7 +3439,7 @@ func file_gonexus_v1_gonexus_proto_rawDescGZIP() []byte {
 	return file_gonexus_v1_gonexus_proto_rawDescData
 }
 
-var file_gonexus_v1_gonexus_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
+var file_gonexus_v1_gonexus_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_gonexus_v1_gonexus_proto_goTypes = []any{
 	(*Node)(nil),                  // 0: gonexus.v1.Node
 	(*Edge)(nil),                  // 1: gonexus.v1.Edge
@@ -3188,45 +3456,49 @@ var file_gonexus_v1_gonexus_proto_goTypes = []any{
 	(*TraceResponse)(nil),         // 12: gonexus.v1.TraceResponse
 	(*SubgraphRequest)(nil),       // 13: gonexus.v1.SubgraphRequest
 	(*SubgraphResponse)(nil),      // 14: gonexus.v1.SubgraphResponse
-	(*ReposRequest)(nil),          // 15: gonexus.v1.ReposRequest
-	(*Repo)(nil),                  // 16: gonexus.v1.Repo
-	(*ReposResponse)(nil),         // 17: gonexus.v1.ReposResponse
-	(*EntryPointsRequest)(nil),    // 18: gonexus.v1.EntryPointsRequest
-	(*EntryPoint)(nil),            // 19: gonexus.v1.EntryPoint
-	(*EntryPointsResponse)(nil),   // 20: gonexus.v1.EntryPointsResponse
-	(*ProcessRequest)(nil),        // 21: gonexus.v1.ProcessRequest
-	(*ProcessResponse)(nil),       // 22: gonexus.v1.ProcessResponse
-	(*ClustersRequest)(nil),       // 23: gonexus.v1.ClustersRequest
-	(*Cluster)(nil),               // 24: gonexus.v1.Cluster
-	(*ClustersResponse)(nil),      // 25: gonexus.v1.ClustersResponse
-	(*DetectChangesRequest)(nil),  // 26: gonexus.v1.DetectChangesRequest
-	(*DetectChangesResponse)(nil), // 27: gonexus.v1.DetectChangesResponse
-	(*RenameRequest)(nil),         // 28: gonexus.v1.RenameRequest
-	(*RenameEdit)(nil),            // 29: gonexus.v1.RenameEdit
-	(*RenameResponse)(nil),        // 30: gonexus.v1.RenameResponse
-	(*WikiRequest)(nil),           // 31: gonexus.v1.WikiRequest
-	(*WikiResponse)(nil),          // 32: gonexus.v1.WikiResponse
-	(*ExplainRequest)(nil),        // 33: gonexus.v1.ExplainRequest
-	(*TaintFinding)(nil),          // 34: gonexus.v1.TaintFinding
-	(*ExplainResponse)(nil),       // 35: gonexus.v1.ExplainResponse
-	(*PdgQueryRequest)(nil),       // 36: gonexus.v1.PdgQueryRequest
-	(*ControlEdge)(nil),           // 37: gonexus.v1.ControlEdge
-	(*PdgQueryResponse)(nil),      // 38: gonexus.v1.PdgQueryResponse
-	(*CheckRequest)(nil),          // 39: gonexus.v1.CheckRequest
-	(*CheckResponse)(nil),         // 40: gonexus.v1.CheckResponse
-	(*CypherRequest)(nil),         // 41: gonexus.v1.CypherRequest
-	(*CypherResponse)(nil),        // 42: gonexus.v1.CypherResponse
-	(*Route)(nil),                 // 43: gonexus.v1.Route
-	(*RouteMapRequest)(nil),       // 44: gonexus.v1.RouteMapRequest
-	(*RouteMapResponse)(nil),      // 45: gonexus.v1.RouteMapResponse
-	(*ApiImpactRequest)(nil),      // 46: gonexus.v1.ApiImpactRequest
-	(*RouteImpact)(nil),           // 47: gonexus.v1.RouteImpact
-	(*ApiImpactResponse)(nil),     // 48: gonexus.v1.ApiImpactResponse
-	(*AskRequest)(nil),            // 49: gonexus.v1.AskRequest
-	(*AskResponse)(nil),           // 50: gonexus.v1.AskResponse
-	(*ShapeCheckRequest)(nil),     // 51: gonexus.v1.ShapeCheckRequest
-	(*ShapeFinding)(nil),          // 52: gonexus.v1.ShapeFinding
-	(*ShapeCheckResponse)(nil),    // 53: gonexus.v1.ShapeCheckResponse
+	(*GraphRequest)(nil),          // 15: gonexus.v1.GraphRequest
+	(*GraphResponse)(nil),         // 16: gonexus.v1.GraphResponse
+	(*SourceRequest)(nil),         // 17: gonexus.v1.SourceRequest
+	(*SourceResponse)(nil),        // 18: gonexus.v1.SourceResponse
+	(*ReposRequest)(nil),          // 19: gonexus.v1.ReposRequest
+	(*Repo)(nil),                  // 20: gonexus.v1.Repo
+	(*ReposResponse)(nil),         // 21: gonexus.v1.ReposResponse
+	(*EntryPointsRequest)(nil),    // 22: gonexus.v1.EntryPointsRequest
+	(*EntryPoint)(nil),            // 23: gonexus.v1.EntryPoint
+	(*EntryPointsResponse)(nil),   // 24: gonexus.v1.EntryPointsResponse
+	(*ProcessRequest)(nil),        // 25: gonexus.v1.ProcessRequest
+	(*ProcessResponse)(nil),       // 26: gonexus.v1.ProcessResponse
+	(*ClustersRequest)(nil),       // 27: gonexus.v1.ClustersRequest
+	(*Cluster)(nil),               // 28: gonexus.v1.Cluster
+	(*ClustersResponse)(nil),      // 29: gonexus.v1.ClustersResponse
+	(*DetectChangesRequest)(nil),  // 30: gonexus.v1.DetectChangesRequest
+	(*DetectChangesResponse)(nil), // 31: gonexus.v1.DetectChangesResponse
+	(*RenameRequest)(nil),         // 32: gonexus.v1.RenameRequest
+	(*RenameEdit)(nil),            // 33: gonexus.v1.RenameEdit
+	(*RenameResponse)(nil),        // 34: gonexus.v1.RenameResponse
+	(*WikiRequest)(nil),           // 35: gonexus.v1.WikiRequest
+	(*WikiResponse)(nil),          // 36: gonexus.v1.WikiResponse
+	(*ExplainRequest)(nil),        // 37: gonexus.v1.ExplainRequest
+	(*TaintFinding)(nil),          // 38: gonexus.v1.TaintFinding
+	(*ExplainResponse)(nil),       // 39: gonexus.v1.ExplainResponse
+	(*PdgQueryRequest)(nil),       // 40: gonexus.v1.PdgQueryRequest
+	(*ControlEdge)(nil),           // 41: gonexus.v1.ControlEdge
+	(*PdgQueryResponse)(nil),      // 42: gonexus.v1.PdgQueryResponse
+	(*CheckRequest)(nil),          // 43: gonexus.v1.CheckRequest
+	(*CheckResponse)(nil),         // 44: gonexus.v1.CheckResponse
+	(*CypherRequest)(nil),         // 45: gonexus.v1.CypherRequest
+	(*CypherResponse)(nil),        // 46: gonexus.v1.CypherResponse
+	(*Route)(nil),                 // 47: gonexus.v1.Route
+	(*RouteMapRequest)(nil),       // 48: gonexus.v1.RouteMapRequest
+	(*RouteMapResponse)(nil),      // 49: gonexus.v1.RouteMapResponse
+	(*ApiImpactRequest)(nil),      // 50: gonexus.v1.ApiImpactRequest
+	(*RouteImpact)(nil),           // 51: gonexus.v1.RouteImpact
+	(*ApiImpactResponse)(nil),     // 52: gonexus.v1.ApiImpactResponse
+	(*AskRequest)(nil),            // 53: gonexus.v1.AskRequest
+	(*AskResponse)(nil),           // 54: gonexus.v1.AskResponse
+	(*ShapeCheckRequest)(nil),     // 55: gonexus.v1.ShapeCheckRequest
+	(*ShapeFinding)(nil),          // 56: gonexus.v1.ShapeFinding
+	(*ShapeCheckResponse)(nil),    // 57: gonexus.v1.ShapeCheckResponse
 }
 var file_gonexus_v1_gonexus_proto_depIdxs = []int32{
 	0,  // 0: gonexus.v1.QueryResponse.results:type_name -> gonexus.v1.Node
@@ -3236,70 +3508,76 @@ var file_gonexus_v1_gonexus_proto_depIdxs = []int32{
 	9,  // 4: gonexus.v1.ImpactResponse.hits:type_name -> gonexus.v1.ImpactHit
 	0,  // 5: gonexus.v1.SubgraphResponse.nodes:type_name -> gonexus.v1.Node
 	1,  // 6: gonexus.v1.SubgraphResponse.edges:type_name -> gonexus.v1.Edge
-	16, // 7: gonexus.v1.ReposResponse.repos:type_name -> gonexus.v1.Repo
-	0,  // 8: gonexus.v1.EntryPoint.node:type_name -> gonexus.v1.Node
-	19, // 9: gonexus.v1.EntryPointsResponse.entries:type_name -> gonexus.v1.EntryPoint
-	0,  // 10: gonexus.v1.ProcessResponse.nodes:type_name -> gonexus.v1.Node
-	1,  // 11: gonexus.v1.ProcessResponse.edges:type_name -> gonexus.v1.Edge
-	24, // 12: gonexus.v1.ClustersResponse.clusters:type_name -> gonexus.v1.Cluster
-	0,  // 13: gonexus.v1.DetectChangesResponse.changed:type_name -> gonexus.v1.Node
-	29, // 14: gonexus.v1.RenameResponse.edits:type_name -> gonexus.v1.RenameEdit
-	34, // 15: gonexus.v1.ExplainResponse.findings:type_name -> gonexus.v1.TaintFinding
-	37, // 16: gonexus.v1.PdgQueryResponse.ctrl_edges:type_name -> gonexus.v1.ControlEdge
-	1,  // 17: gonexus.v1.CheckResponse.dangling:type_name -> gonexus.v1.Edge
-	1,  // 18: gonexus.v1.CypherResponse.edges:type_name -> gonexus.v1.Edge
-	43, // 19: gonexus.v1.RouteMapResponse.routes:type_name -> gonexus.v1.Route
-	43, // 20: gonexus.v1.RouteImpact.route:type_name -> gonexus.v1.Route
-	47, // 21: gonexus.v1.ApiImpactResponse.routes:type_name -> gonexus.v1.RouteImpact
-	0,  // 22: gonexus.v1.AskResponse.sources:type_name -> gonexus.v1.Node
-	52, // 23: gonexus.v1.ShapeCheckResponse.findings:type_name -> gonexus.v1.ShapeFinding
-	2,  // 24: gonexus.v1.GoNexusService.Index:input_type -> gonexus.v1.IndexRequest
-	4,  // 25: gonexus.v1.GoNexusService.Query:input_type -> gonexus.v1.QueryRequest
-	6,  // 26: gonexus.v1.GoNexusService.Context:input_type -> gonexus.v1.ContextRequest
-	8,  // 27: gonexus.v1.GoNexusService.Impact:input_type -> gonexus.v1.ImpactRequest
-	11, // 28: gonexus.v1.GoNexusService.Trace:input_type -> gonexus.v1.TraceRequest
-	13, // 29: gonexus.v1.GoNexusService.Subgraph:input_type -> gonexus.v1.SubgraphRequest
-	15, // 30: gonexus.v1.GoNexusService.Repos:input_type -> gonexus.v1.ReposRequest
-	18, // 31: gonexus.v1.GoNexusService.EntryPoints:input_type -> gonexus.v1.EntryPointsRequest
-	21, // 32: gonexus.v1.GoNexusService.Process:input_type -> gonexus.v1.ProcessRequest
-	23, // 33: gonexus.v1.GoNexusService.Clusters:input_type -> gonexus.v1.ClustersRequest
-	26, // 34: gonexus.v1.GoNexusService.DetectChanges:input_type -> gonexus.v1.DetectChangesRequest
-	28, // 35: gonexus.v1.GoNexusService.Rename:input_type -> gonexus.v1.RenameRequest
-	31, // 36: gonexus.v1.GoNexusService.Wiki:input_type -> gonexus.v1.WikiRequest
-	33, // 37: gonexus.v1.GoNexusService.Explain:input_type -> gonexus.v1.ExplainRequest
-	36, // 38: gonexus.v1.GoNexusService.PdgQuery:input_type -> gonexus.v1.PdgQueryRequest
-	39, // 39: gonexus.v1.GoNexusService.Check:input_type -> gonexus.v1.CheckRequest
-	41, // 40: gonexus.v1.GoNexusService.Cypher:input_type -> gonexus.v1.CypherRequest
-	44, // 41: gonexus.v1.GoNexusService.RouteMap:input_type -> gonexus.v1.RouteMapRequest
-	46, // 42: gonexus.v1.GoNexusService.ApiImpact:input_type -> gonexus.v1.ApiImpactRequest
-	49, // 43: gonexus.v1.GoNexusService.Ask:input_type -> gonexus.v1.AskRequest
-	51, // 44: gonexus.v1.GoNexusService.ShapeCheck:input_type -> gonexus.v1.ShapeCheckRequest
-	3,  // 45: gonexus.v1.GoNexusService.Index:output_type -> gonexus.v1.IndexResponse
-	5,  // 46: gonexus.v1.GoNexusService.Query:output_type -> gonexus.v1.QueryResponse
-	7,  // 47: gonexus.v1.GoNexusService.Context:output_type -> gonexus.v1.ContextResponse
-	10, // 48: gonexus.v1.GoNexusService.Impact:output_type -> gonexus.v1.ImpactResponse
-	12, // 49: gonexus.v1.GoNexusService.Trace:output_type -> gonexus.v1.TraceResponse
-	14, // 50: gonexus.v1.GoNexusService.Subgraph:output_type -> gonexus.v1.SubgraphResponse
-	17, // 51: gonexus.v1.GoNexusService.Repos:output_type -> gonexus.v1.ReposResponse
-	20, // 52: gonexus.v1.GoNexusService.EntryPoints:output_type -> gonexus.v1.EntryPointsResponse
-	22, // 53: gonexus.v1.GoNexusService.Process:output_type -> gonexus.v1.ProcessResponse
-	25, // 54: gonexus.v1.GoNexusService.Clusters:output_type -> gonexus.v1.ClustersResponse
-	27, // 55: gonexus.v1.GoNexusService.DetectChanges:output_type -> gonexus.v1.DetectChangesResponse
-	30, // 56: gonexus.v1.GoNexusService.Rename:output_type -> gonexus.v1.RenameResponse
-	32, // 57: gonexus.v1.GoNexusService.Wiki:output_type -> gonexus.v1.WikiResponse
-	35, // 58: gonexus.v1.GoNexusService.Explain:output_type -> gonexus.v1.ExplainResponse
-	38, // 59: gonexus.v1.GoNexusService.PdgQuery:output_type -> gonexus.v1.PdgQueryResponse
-	40, // 60: gonexus.v1.GoNexusService.Check:output_type -> gonexus.v1.CheckResponse
-	42, // 61: gonexus.v1.GoNexusService.Cypher:output_type -> gonexus.v1.CypherResponse
-	45, // 62: gonexus.v1.GoNexusService.RouteMap:output_type -> gonexus.v1.RouteMapResponse
-	48, // 63: gonexus.v1.GoNexusService.ApiImpact:output_type -> gonexus.v1.ApiImpactResponse
-	50, // 64: gonexus.v1.GoNexusService.Ask:output_type -> gonexus.v1.AskResponse
-	53, // 65: gonexus.v1.GoNexusService.ShapeCheck:output_type -> gonexus.v1.ShapeCheckResponse
-	45, // [45:66] is the sub-list for method output_type
-	24, // [24:45] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	0,  // 7: gonexus.v1.GraphResponse.nodes:type_name -> gonexus.v1.Node
+	1,  // 8: gonexus.v1.GraphResponse.edges:type_name -> gonexus.v1.Edge
+	20, // 9: gonexus.v1.ReposResponse.repos:type_name -> gonexus.v1.Repo
+	0,  // 10: gonexus.v1.EntryPoint.node:type_name -> gonexus.v1.Node
+	23, // 11: gonexus.v1.EntryPointsResponse.entries:type_name -> gonexus.v1.EntryPoint
+	0,  // 12: gonexus.v1.ProcessResponse.nodes:type_name -> gonexus.v1.Node
+	1,  // 13: gonexus.v1.ProcessResponse.edges:type_name -> gonexus.v1.Edge
+	28, // 14: gonexus.v1.ClustersResponse.clusters:type_name -> gonexus.v1.Cluster
+	0,  // 15: gonexus.v1.DetectChangesResponse.changed:type_name -> gonexus.v1.Node
+	33, // 16: gonexus.v1.RenameResponse.edits:type_name -> gonexus.v1.RenameEdit
+	38, // 17: gonexus.v1.ExplainResponse.findings:type_name -> gonexus.v1.TaintFinding
+	41, // 18: gonexus.v1.PdgQueryResponse.ctrl_edges:type_name -> gonexus.v1.ControlEdge
+	1,  // 19: gonexus.v1.CheckResponse.dangling:type_name -> gonexus.v1.Edge
+	1,  // 20: gonexus.v1.CypherResponse.edges:type_name -> gonexus.v1.Edge
+	47, // 21: gonexus.v1.RouteMapResponse.routes:type_name -> gonexus.v1.Route
+	47, // 22: gonexus.v1.RouteImpact.route:type_name -> gonexus.v1.Route
+	51, // 23: gonexus.v1.ApiImpactResponse.routes:type_name -> gonexus.v1.RouteImpact
+	0,  // 24: gonexus.v1.AskResponse.sources:type_name -> gonexus.v1.Node
+	56, // 25: gonexus.v1.ShapeCheckResponse.findings:type_name -> gonexus.v1.ShapeFinding
+	2,  // 26: gonexus.v1.GoNexusService.Index:input_type -> gonexus.v1.IndexRequest
+	4,  // 27: gonexus.v1.GoNexusService.Query:input_type -> gonexus.v1.QueryRequest
+	6,  // 28: gonexus.v1.GoNexusService.Context:input_type -> gonexus.v1.ContextRequest
+	8,  // 29: gonexus.v1.GoNexusService.Impact:input_type -> gonexus.v1.ImpactRequest
+	11, // 30: gonexus.v1.GoNexusService.Trace:input_type -> gonexus.v1.TraceRequest
+	13, // 31: gonexus.v1.GoNexusService.Subgraph:input_type -> gonexus.v1.SubgraphRequest
+	19, // 32: gonexus.v1.GoNexusService.Repos:input_type -> gonexus.v1.ReposRequest
+	22, // 33: gonexus.v1.GoNexusService.EntryPoints:input_type -> gonexus.v1.EntryPointsRequest
+	25, // 34: gonexus.v1.GoNexusService.Process:input_type -> gonexus.v1.ProcessRequest
+	27, // 35: gonexus.v1.GoNexusService.Clusters:input_type -> gonexus.v1.ClustersRequest
+	30, // 36: gonexus.v1.GoNexusService.DetectChanges:input_type -> gonexus.v1.DetectChangesRequest
+	32, // 37: gonexus.v1.GoNexusService.Rename:input_type -> gonexus.v1.RenameRequest
+	35, // 38: gonexus.v1.GoNexusService.Wiki:input_type -> gonexus.v1.WikiRequest
+	37, // 39: gonexus.v1.GoNexusService.Explain:input_type -> gonexus.v1.ExplainRequest
+	40, // 40: gonexus.v1.GoNexusService.PdgQuery:input_type -> gonexus.v1.PdgQueryRequest
+	43, // 41: gonexus.v1.GoNexusService.Check:input_type -> gonexus.v1.CheckRequest
+	45, // 42: gonexus.v1.GoNexusService.Cypher:input_type -> gonexus.v1.CypherRequest
+	48, // 43: gonexus.v1.GoNexusService.RouteMap:input_type -> gonexus.v1.RouteMapRequest
+	50, // 44: gonexus.v1.GoNexusService.ApiImpact:input_type -> gonexus.v1.ApiImpactRequest
+	53, // 45: gonexus.v1.GoNexusService.Ask:input_type -> gonexus.v1.AskRequest
+	55, // 46: gonexus.v1.GoNexusService.ShapeCheck:input_type -> gonexus.v1.ShapeCheckRequest
+	15, // 47: gonexus.v1.GoNexusService.Graph:input_type -> gonexus.v1.GraphRequest
+	17, // 48: gonexus.v1.GoNexusService.Source:input_type -> gonexus.v1.SourceRequest
+	3,  // 49: gonexus.v1.GoNexusService.Index:output_type -> gonexus.v1.IndexResponse
+	5,  // 50: gonexus.v1.GoNexusService.Query:output_type -> gonexus.v1.QueryResponse
+	7,  // 51: gonexus.v1.GoNexusService.Context:output_type -> gonexus.v1.ContextResponse
+	10, // 52: gonexus.v1.GoNexusService.Impact:output_type -> gonexus.v1.ImpactResponse
+	12, // 53: gonexus.v1.GoNexusService.Trace:output_type -> gonexus.v1.TraceResponse
+	14, // 54: gonexus.v1.GoNexusService.Subgraph:output_type -> gonexus.v1.SubgraphResponse
+	21, // 55: gonexus.v1.GoNexusService.Repos:output_type -> gonexus.v1.ReposResponse
+	24, // 56: gonexus.v1.GoNexusService.EntryPoints:output_type -> gonexus.v1.EntryPointsResponse
+	26, // 57: gonexus.v1.GoNexusService.Process:output_type -> gonexus.v1.ProcessResponse
+	29, // 58: gonexus.v1.GoNexusService.Clusters:output_type -> gonexus.v1.ClustersResponse
+	31, // 59: gonexus.v1.GoNexusService.DetectChanges:output_type -> gonexus.v1.DetectChangesResponse
+	34, // 60: gonexus.v1.GoNexusService.Rename:output_type -> gonexus.v1.RenameResponse
+	36, // 61: gonexus.v1.GoNexusService.Wiki:output_type -> gonexus.v1.WikiResponse
+	39, // 62: gonexus.v1.GoNexusService.Explain:output_type -> gonexus.v1.ExplainResponse
+	42, // 63: gonexus.v1.GoNexusService.PdgQuery:output_type -> gonexus.v1.PdgQueryResponse
+	44, // 64: gonexus.v1.GoNexusService.Check:output_type -> gonexus.v1.CheckResponse
+	46, // 65: gonexus.v1.GoNexusService.Cypher:output_type -> gonexus.v1.CypherResponse
+	49, // 66: gonexus.v1.GoNexusService.RouteMap:output_type -> gonexus.v1.RouteMapResponse
+	52, // 67: gonexus.v1.GoNexusService.ApiImpact:output_type -> gonexus.v1.ApiImpactResponse
+	54, // 68: gonexus.v1.GoNexusService.Ask:output_type -> gonexus.v1.AskResponse
+	57, // 69: gonexus.v1.GoNexusService.ShapeCheck:output_type -> gonexus.v1.ShapeCheckResponse
+	16, // 70: gonexus.v1.GoNexusService.Graph:output_type -> gonexus.v1.GraphResponse
+	18, // 71: gonexus.v1.GoNexusService.Source:output_type -> gonexus.v1.SourceResponse
+	49, // [49:72] is the sub-list for method output_type
+	26, // [26:49] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_gonexus_v1_gonexus_proto_init() }
@@ -3313,7 +3591,7 @@ func file_gonexus_v1_gonexus_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gonexus_v1_gonexus_proto_rawDesc), len(file_gonexus_v1_gonexus_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   54,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
