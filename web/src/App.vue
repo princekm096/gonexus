@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { api } from "./api.js";
 import GraphView from "./GraphView.vue";
+import TreeNode from "./TreeNode.vue";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -238,6 +239,52 @@ function toggleKind(k) {
   hiddenKinds.value = { ...hiddenKinds.value, [k]: !hiddenKinds.value[k] };
 }
 const shortId = (id) => id.split("/").pop();
+
+// ---- Explorer file tree ----
+const sidebarTab = ref("explorer"); // "explorer" | "filters"
+// Build a folder/file/symbol tree from the loaded nodes (paths made relative to
+// their common prefix). In cross-repo mode the repo name is the top level.
+const explorerTree = computed(() => {
+  const withFile = allNodes.value.filter((n) => n.file);
+  if (!withFile.length) return null;
+  const root = { name: "", dirs: {}, files: {} };
+  const groups = {}; // top-level bucket (repo in cross mode, else "")
+  for (const n of withFile) (groups[n.repo || ""] ||= []).push(n);
+  for (const [bucket, nodes] of Object.entries(groups)) {
+    // common directory prefix within this bucket
+    let prefix = nodes[0].file;
+    for (const n of nodes) while (!n.file.startsWith(prefix)) prefix = prefix.slice(0, -1);
+    prefix = prefix.slice(0, prefix.lastIndexOf("/") + 1);
+    let base = root;
+    if (bucket) {
+      base.dirs[bucket] ||= { name: bucket, repo: true, dirs: {}, files: {} };
+      base = base.dirs[bucket];
+    }
+    for (const n of nodes) {
+      const parts = n.file.slice(prefix.length).split("/");
+      let cur = base;
+      for (let i = 0; i < parts.length - 1; i++) {
+        cur.dirs[parts[i]] ||= { name: parts[i], dirs: {}, files: {} };
+        cur = cur.dirs[parts[i]];
+      }
+      const f = parts[parts.length - 1];
+      (cur.files[f] ||= []).push(n);
+    }
+  }
+  // Convert the nested maps into sorted arrays the tree component can render.
+  const toArr = (node) => ({
+    name: node.name,
+    repo: node.repo,
+    dirs: Object.values(node.dirs)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(toArr),
+    files: Object.entries(node.files)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, syms]) => ({ name, syms: syms.sort((a, b) => a.line - b.line) })),
+  });
+  return toArr(root);
+});
+
 const highlightedLines = computed(() => {
   if (!source.value) return [];
   const code = source.value.code;
@@ -308,42 +355,64 @@ const highlightedLines = computed(() => {
     <!-- Body: sidebar | inspector | graph -->
     <div class="body">
       <aside class="sidebar" v-if="!graphMax">
-        <h3>Filters</h3>
-        <p class="hint">Toggle node types in the graph</p>
-        <ul class="kinds">
-          <li v-for="k in presentKinds" :key="k" @click="toggleKind(k)" :class="{ off: hiddenKinds[k] }">
-            <span class="kicon" :style="{ color: KIND_COLOR[k] || '#8b949e' }">{{ KIND_ICON[k] || "•" }}</span>
-            <span class="kname">{{ k }}</span>
-            <span class="eye">{{ hiddenKinds[k] ? "🚫" : "👁" }}</span>
-          </li>
-        </ul>
-
-        <h3>Focus depth</h3>
-        <p class="hint">Show nodes within N hops of the selected node</p>
-        <div class="depths">
-          <button
-            v-for="d in [0, 1, 2, 3]"
-            :key="d"
-            :class="{ active: focusDepth === d }"
-            @click="focusDepth = d"
-          >
-            {{ d === 0 ? "All" : d + " hop" }}
-          </button>
+        <div class="tabs">
+          <button :class="{ active: sidebarTab === 'explorer' }" @click="sidebarTab = 'explorer'">Explorer</button>
+          <button :class="{ active: sidebarTab === 'filters' }" @click="sidebarTab = 'filters'">Filters</button>
         </div>
 
-        <h3>{{ mode === "cross" ? "Repos" : "Legend" }}</h3>
-        <ul class="legend" v-if="mode === 'cross'">
-          <li v-for="r in repoLegend" :key="r.repo">
-            <span class="dotk" :style="{ background: r.color }"></span> {{ r.repo }}
-          </li>
-          <li><span class="dotk" style="background: #f778ba"></span> cross-repo link</li>
-        </ul>
-        <ul class="legend" v-else>
-          <li v-for="k in presentKinds" :key="k">
-            <span class="dotk" :style="{ background: KIND_COLOR[k] || '#8b949e' }"></span> {{ k }}
-          </li>
-        </ul>
-        <p v-if="truncated" class="hint warn">Graph capped to top nodes by degree.</p>
+        <!-- Explorer: file/folder/symbol tree -->
+        <div v-show="sidebarTab === 'explorer'" class="explorer">
+          <TreeNode
+            v-if="explorerTree"
+            :dirs="explorerTree.dirs"
+            :files="explorerTree.files"
+            :focus-id="focusId"
+            :kind-color="KIND_COLOR"
+            :kind-icon="KIND_ICON"
+            @select="select"
+          />
+          <p v-else class="hint">No files to show.</p>
+        </div>
+
+        <!-- Filters -->
+        <div v-show="sidebarTab === 'filters'">
+          <h3>Node types</h3>
+          <p class="hint">Toggle node types in the graph</p>
+          <ul class="kinds">
+            <li v-for="k in presentKinds" :key="k" @click="toggleKind(k)" :class="{ off: hiddenKinds[k] }">
+              <span class="kicon" :style="{ color: KIND_COLOR[k] || '#8b949e' }">{{ KIND_ICON[k] || "•" }}</span>
+              <span class="kname">{{ k }}</span>
+              <span class="eye">{{ hiddenKinds[k] ? "🚫" : "👁" }}</span>
+            </li>
+          </ul>
+
+          <h3>Focus depth</h3>
+          <p class="hint">Show nodes within N hops of the selected node</p>
+          <div class="depths">
+            <button
+              v-for="d in [0, 1, 2, 3, 5]"
+              :key="d"
+              :class="{ active: focusDepth === d }"
+              @click="focusDepth = d"
+            >
+              {{ d === 0 ? "All" : d + " hop" }}
+            </button>
+          </div>
+
+          <h3>{{ mode === "cross" ? "Repos" : "Legend" }}</h3>
+          <ul class="legend" v-if="mode === 'cross'">
+            <li v-for="r in repoLegend" :key="r.repo">
+              <span class="dotk" :style="{ background: r.color }"></span> {{ r.repo }}
+            </li>
+            <li><span class="dotk" style="background: #f778ba"></span> cross-repo link</li>
+          </ul>
+          <ul class="legend" v-else>
+            <li v-for="k in presentKinds" :key="k">
+              <span class="dotk" :style="{ background: KIND_COLOR[k] || '#8b949e' }"></span> {{ k }}
+            </li>
+          </ul>
+          <p v-if="truncated" class="hint warn">Graph capped to top nodes by degree.</p>
+        </div>
       </aside>
 
       <section class="inspector" v-if="!graphMax">
@@ -357,6 +426,9 @@ const highlightedLines = computed(() => {
         <!-- Code Inspector -->
         <div class="inspector-head">
           <span class="ii">&lt;/&gt;</span> Code Inspector
+          <span v-if="selected?.node" class="refbadge">
+            ✨ {{ (selected.incoming?.length || 0) + (selected.outgoing?.length || 0) }} references
+          </span>
         </div>
         <div v-if="selected?.node" class="detail">
           <div class="node-title">
@@ -455,6 +527,11 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background:
 .body { display: grid; grid-template-columns: 250px minmax(340px, 42%) 1fr; min-height: 0; }
 .app.max .body { grid-template-columns: 1fr; }
 .sidebar, .inspector { overflow: auto; min-height: 0; padding: 14px; border-right: 1px solid #21262d; }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid #21262d; }
+.tabs button { padding: 6px 12px; font-size: 13px; background: transparent; color: #9da7b3; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.tabs button.active { color: #e6edf3; border-bottom-color: #a371f7; }
+.explorer { font-family: ui-monospace, Menlo, monospace; }
+.refbadge { margin-left: auto; font-size: 11px; color: #7ee787; background: #12261a; border: 1px solid #2ea04326; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
 .sidebar h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #7d8590; margin: 16px 0 6px; }
 .sidebar h3:first-child { margin-top: 0; }
 .hint { font-size: 12px; color: #7d8590; margin: 0 0 8px; }
