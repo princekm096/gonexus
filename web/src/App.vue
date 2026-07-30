@@ -53,6 +53,19 @@ const KIND_COLOR = {
   const: "#a5d6ff",
 };
 const KIND_ORDER = ["package", "file", "type", "class", "interface", "func", "method", "component", "var", "const"];
+// Monochrome glyph per kind (colored by KIND_COLOR) — node-type icons.
+const KIND_ICON = {
+  package: "▦",
+  file: "▤",
+  type: "◆",
+  class: "◈",
+  interface: "◇",
+  func: "ƒ",
+  method: "⋔",
+  component: "❖",
+  var: "𝑥",
+  const: "#",
+};
 
 const repos = ref([]);
 const repo = ref("");
@@ -299,7 +312,7 @@ const highlightedLines = computed(() => {
         <p class="hint">Toggle node types in the graph</p>
         <ul class="kinds">
           <li v-for="k in presentKinds" :key="k" @click="toggleKind(k)" :class="{ off: hiddenKinds[k] }">
-            <span class="dotk" :style="{ background: KIND_COLOR[k] || '#8b949e' }"></span>
+            <span class="kicon" :style="{ color: KIND_COLOR[k] || '#8b949e' }">{{ KIND_ICON[k] || "•" }}</span>
             <span class="kname">{{ k }}</span>
             <span class="eye">{{ hiddenKinds[k] ? "🚫" : "👁" }}</span>
           </li>
@@ -452,6 +465,7 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background:
 .kinds li.off { opacity: 0.4; }
 .kinds .kname { flex: 1; }
 .kinds .eye { font-size: 11px; }
+.kicon { width: 16px; text-align: center; font-size: 13px; flex: none; }
 .legend li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9da7b3; padding: 3px 0; }
 .dotk { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .depths { display: flex; flex-wrap: wrap; gap: 6px; }

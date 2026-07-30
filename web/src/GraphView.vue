@@ -50,6 +50,46 @@ const EDGE_COLOR = {
 const DIM = "#22272e";
 const IMPACT = "#ff7b72"; // blast-radius highlight
 const CROSS = "#f778ba"; // cross-repo contract edge
+const PILL_BORDER = "#39c5cf"; // cyan label pill border
+
+function roundRect(ctx, x, y, w, h, r) {
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Custom label: a dark rounded pill with a cyan border to the right of the node
+// (GitNexus-style filename chips), instead of Sigma's plain floating text.
+function drawNodeLabel(context, data, settings) {
+  if (!data.label) return;
+  const size = settings.labelSize;
+  context.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`;
+  const w = context.measureText(data.label).width;
+  const padX = 6,
+    padY = 4;
+  const x = data.x + data.size + 5;
+  const top = data.y - size / 2 - padY;
+  const h = size + padY * 2;
+  context.fillStyle = "rgba(13,17,23,0.9)";
+  context.strokeStyle = PILL_BORDER;
+  context.lineWidth = 1;
+  roundRect(context, x - padX, top, w + padX * 2, h, 5);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#e6edf3";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(data.label, x, data.y);
+}
 // Stable per-repo palette for cross-repo coloring.
 const REPO_PALETTE = ["#58a6ff", "#7ee787", "#f0883e", "#d2a8ff", "#f778ba", "#ffa657", "#79c0ff", "#56d364"];
 const repoColors = {};
@@ -134,6 +174,7 @@ function mount() {
     labelGridCellSize: 80,
     labelRenderedSizeThreshold: 10,
     zIndex: true,
+    defaultDrawNodeLabel: drawNodeLabel,
     nodeReducer,
     edgeReducer,
   });
