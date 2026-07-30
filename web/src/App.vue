@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { api } from "./api.js";
 import GraphView from "./GraphView.vue";
 import TreeNode from "./TreeNode.vue";
+import ChatPanel from "./ChatPanel.vue";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -95,9 +96,14 @@ const hiddenKinds = ref({}); // kind -> true = hidden in the graph
 const focusDepth = ref(0); // 0 = all
 const graphMax = ref(false);
 
-const ask = ref("");
-const answer = ref("");
-const asking = ref(false);
+// Ask targets one repo; in cross-repo mode use the group's first repo.
+const activeRepo = computed(() => {
+  if (mode.value === "cross") {
+    const g = groups.value.find((x) => x.name === group.value);
+    return (g && g.repos[0]) || repo.value;
+  }
+  return repo.value;
+});
 
 // Node kinds actually present, in a stable order, for the sidebar toggles.
 const presentKinds = computed(() => {
@@ -219,20 +225,6 @@ async function showImpact() {
   impactStatus.value = impact.value.length
     ? `${impact.value.length} symbols depend on this — highlighted in the graph.`
     : "Nothing depends on this — no transitive callers.";
-}
-
-async function runAsk() {
-  if (!ask.value.trim()) return;
-  asking.value = true;
-  answer.value = "";
-  try {
-    const r = await api.ask(ask.value, repo.value);
-    answer.value = r.answer || "";
-  } catch (e) {
-    answer.value = "Error: " + e;
-  } finally {
-    asking.value = false;
-  }
 }
 
 function toggleKind(k) {
@@ -416,13 +408,6 @@ const highlightedLines = computed(() => {
       </aside>
 
       <section class="inspector" v-if="!graphMax">
-        <!-- Ask -->
-        <form class="ask" @submit.prevent="runAsk">
-          <input v-model="ask" placeholder="Ask about this codebase…" />
-          <button type="submit" :disabled="asking">{{ asking ? "…" : "Ask" }}</button>
-        </form>
-        <pre v-if="answer" class="answer">{{ answer }}</pre>
-
         <!-- Code Inspector -->
         <div class="inspector-head">
           <span class="ii">&lt;/&gt;</span> Code Inspector
@@ -492,6 +477,8 @@ const highlightedLines = computed(() => {
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
+
+    <ChatPanel :repo="activeRepo" :kind-color="KIND_COLOR" @select="select" />
   </div>
 </template>
 
