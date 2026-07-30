@@ -181,7 +181,7 @@ function mount() {
     edgeReducer,
   });
   renderer.on("clickNode", ({ node }) => {
-    pinned = node; // pin the spotlight so neighbors/edges/labels persist
+    pinned = pinned === node ? null : node; // click to pin; click again to unpin
     emit("select", node);
     renderer.refresh();
   });
