@@ -15,6 +15,10 @@ const props = defineProps({
   focusDepth: { type: Number, default: 0 },
   // parent-controlled: graph fills the whole workspace (side panels hidden).
   maximized: { type: Boolean, default: false },
+  // blast-radius overlay: ids to spotlight red; empty = off.
+  impactIds: { type: Array, default: () => [] },
+  // cross-repo mode: color nodes by owning repo instead of kind.
+  colorByRepo: { type: Boolean, default: false },
 });
 const emit = defineEmits(["select", "toggle-max"]);
 
@@ -23,6 +27,7 @@ let renderer = null;
 let graph = null;
 let hovered = null; // hovered node id (drives the highlight reducers)
 let depthSet = null; // Set of ids within focusDepth of focusId, or null = all
+let impactSet = new Set(); // blast-radius ids to spotlight
 
 const KIND_COLOR = {
   func: "#58a6ff",
@@ -43,6 +48,18 @@ const EDGE_COLOR = {
   defines: "#4b5563",
 };
 const DIM = "#22272e";
+const IMPACT = "#ff7b72"; // blast-radius highlight
+const CROSS = "#f778ba"; // cross-repo contract edge
+// Stable per-repo palette for cross-repo coloring.
+const REPO_PALETTE = ["#58a6ff", "#7ee787", "#f0883e", "#d2a8ff", "#f778ba", "#ffa657", "#79c0ff", "#56d364"];
+const repoColors = {};
+function repoColor(repo) {
+  if (!repo) return "#8b949e";
+  if (!(repo in repoColors)) {
+    repoColors[repo] = REPO_PALETTE[Object.keys(repoColors).length % REPO_PALETTE.length];
+  }
+  return repoColors[repo];
+}
 
 // build lays out the whole graph (graphology + ForceAtlas2) once per data change.
 function build() {
@@ -59,14 +76,20 @@ function build() {
     g.mergeNode(n.id, {
       label: n.name || n.id,
       kind: n.kind,
-      color: KIND_COLOR[n.kind] || "#8b949e",
+      repo: n.repo || "",
+      baseColor: props.colorByRepo ? repoColor(n.repo) : KIND_COLOR[n.kind] || "#8b949e",
+      color: props.colorByRepo ? repoColor(n.repo) : KIND_COLOR[n.kind] || "#8b949e",
       x: Math.random(),
       y: Math.random(),
     });
   }
   for (const e of props.edges) {
     if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) {
-      g.addEdge(e.from, e.to, { color: EDGE_COLOR[e.kind] || "#5b6b7d", size: 3 });
+      g.addEdge(e.from, e.to, {
+        color: e.cross ? CROSS : EDGE_COLOR[e.kind] || "#5b6b7d",
+        size: e.cross ? 5 : 3,
+        cross: !!e.cross,
+      });
     }
   }
 
@@ -87,6 +110,7 @@ function build() {
 
   graph = g;
   recomputeDepth();
+  recomputeImpact();
   mount();
 }
 
@@ -162,8 +186,13 @@ function nodeReducer(id, data) {
     }
     return { ...data, color: DIM, label: "", zIndex: 0 };
   }
+  if (impactSet.size) {
+    if (isFocus) return { ...data, color: "#ffffff", zIndex: 2, forceLabel: true, size: data.size + 4 };
+    if (impactSet.has(id)) return { ...data, color: IMPACT, zIndex: 1, forceLabel: true };
+    return { ...data, color: DIM, label: "", zIndex: 0 };
+  }
   if (isFocus) return { ...data, color: "#ffffff", zIndex: 1, forceLabel: true, size: data.size + 4 };
-  return data;
+  return { ...data, color: data.baseColor };
 }
 function edgeReducer(edge, data) {
   const [s, t] = graph.extremities(edge);
@@ -174,7 +203,17 @@ function edgeReducer(edge, data) {
     if (s === hovered || t === hovered) return { ...data, color: "#788aa0", zIndex: 1 };
     return { ...data, hidden: true };
   }
+  if (impactSet.size) {
+    const inSet = (n) => n === props.focusId || impactSet.has(n);
+    if (inSet(s) && inSet(t)) return { ...data, color: IMPACT, zIndex: 1 };
+    return { ...data, hidden: true };
+  }
   return data;
+}
+
+// recomputeImpact rebuilds the blast-radius spotlight set from the prop.
+function recomputeImpact() {
+  impactSet = new Set(props.impactIds || []);
 }
 
 // Container resized (maximize toggle): rebuild so a fresh Sigma fits the new size.
@@ -206,7 +245,16 @@ watch(
   },
   { deep: true },
 );
+watch(
+  () => props.impactIds,
+  () => {
+    recomputeImpact();
+    renderer && renderer.refresh();
+  },
+  { deep: true },
+);
 watch(() => props.maximized, reframe);
+watch(() => props.colorByRepo, reframe);
 </script>
 
 <template>

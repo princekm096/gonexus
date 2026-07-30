@@ -55,6 +55,11 @@ service GoNexusService {
   // Source returns the source code of a symbol (resolved from its own node,
   // never a client-supplied path), for the code inspector.
   rpc Source(SourceRequest) returns (SourceResponse) {}
+  // Groups lists the configured repo groups (for cross-repo mode).
+  rpc Groups(GroupsRequest) returns (GroupsResponse) {}
+  // GroupGraph returns the merged graph of a group's repos plus the cross-repo
+  // contract edges linking them.
+  rpc GroupGraph(GroupGraphRequest) returns (GraphResponse) {}
 }
 
 // repo names which registered repository a query targets. Empty selects the
@@ -69,12 +74,14 @@ message Node {
   int32 line = 6;
   string signature = 7;
   string doc = 8;
+  string repo = 9; // owning repo (set in cross-repo/group graphs)
 }
 
 message Edge {
   string from = 1;
   string to = 2;
   string kind = 3;
+  bool cross = 4; // true for cross-repo contract links
 }
 
 message IndexRequest {
@@ -156,6 +163,18 @@ message SourceResponse {
   int32 start_line = 2; // 1-based line number of the first returned line
   string code = 3;
   string lang = 4; // language hint from the file extension (e.g. "go", "ts")
+}
+
+message GroupsRequest {}
+message GroupInfo {
+  string name = 1;
+  repeated string repos = 2;
+}
+message GroupsResponse { repeated GroupInfo groups = 1; }
+
+message GroupGraphRequest {
+  string group = 1;
+  int32 limit = 2; // max nodes per repo before merging
 }
 
 message ReposRequest {}

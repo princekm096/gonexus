@@ -83,6 +83,11 @@ const (
 	GoNexusServiceGraphProcedure = "/gonexus.v1.GoNexusService/Graph"
 	// GoNexusServiceSourceProcedure is the fully-qualified name of the GoNexusService's Source RPC.
 	GoNexusServiceSourceProcedure = "/gonexus.v1.GoNexusService/Source"
+	// GoNexusServiceGroupsProcedure is the fully-qualified name of the GoNexusService's Groups RPC.
+	GoNexusServiceGroupsProcedure = "/gonexus.v1.GoNexusService/Groups"
+	// GoNexusServiceGroupGraphProcedure is the fully-qualified name of the GoNexusService's GroupGraph
+	// RPC.
+	GoNexusServiceGroupGraphProcedure = "/gonexus.v1.GoNexusService/GroupGraph"
 )
 
 // GoNexusServiceClient is a client for the gonexus.v1.GoNexusService service.
@@ -134,6 +139,11 @@ type GoNexusServiceClient interface {
 	// Source returns the source code of a symbol (resolved from its own node,
 	// never a client-supplied path), for the code inspector.
 	Source(context.Context, *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error)
+	// Groups lists the configured repo groups (for cross-repo mode).
+	Groups(context.Context, *connect.Request[v1.GroupsRequest]) (*connect.Response[v1.GroupsResponse], error)
+	// GroupGraph returns the merged graph of a group's repos plus the cross-repo
+	// contract edges linking them.
+	GroupGraph(context.Context, *connect.Request[v1.GroupGraphRequest]) (*connect.Response[v1.GraphResponse], error)
 }
 
 // NewGoNexusServiceClient constructs a client for the gonexus.v1.GoNexusService service. By
@@ -285,6 +295,18 @@ func NewGoNexusServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(goNexusServiceMethods.ByName("Source")),
 			connect.WithClientOptions(opts...),
 		),
+		groups: connect.NewClient[v1.GroupsRequest, v1.GroupsResponse](
+			httpClient,
+			baseURL+GoNexusServiceGroupsProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("Groups")),
+			connect.WithClientOptions(opts...),
+		),
+		groupGraph: connect.NewClient[v1.GroupGraphRequest, v1.GraphResponse](
+			httpClient,
+			baseURL+GoNexusServiceGroupGraphProcedure,
+			connect.WithSchema(goNexusServiceMethods.ByName("GroupGraph")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -313,6 +335,8 @@ type goNexusServiceClient struct {
 	shapeCheck    *connect.Client[v1.ShapeCheckRequest, v1.ShapeCheckResponse]
 	graph         *connect.Client[v1.GraphRequest, v1.GraphResponse]
 	source        *connect.Client[v1.SourceRequest, v1.SourceResponse]
+	groups        *connect.Client[v1.GroupsRequest, v1.GroupsResponse]
+	groupGraph    *connect.Client[v1.GroupGraphRequest, v1.GraphResponse]
 }
 
 // Index calls gonexus.v1.GoNexusService.Index.
@@ -430,6 +454,16 @@ func (c *goNexusServiceClient) Source(ctx context.Context, req *connect.Request[
 	return c.source.CallUnary(ctx, req)
 }
 
+// Groups calls gonexus.v1.GoNexusService.Groups.
+func (c *goNexusServiceClient) Groups(ctx context.Context, req *connect.Request[v1.GroupsRequest]) (*connect.Response[v1.GroupsResponse], error) {
+	return c.groups.CallUnary(ctx, req)
+}
+
+// GroupGraph calls gonexus.v1.GoNexusService.GroupGraph.
+func (c *goNexusServiceClient) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGraphRequest]) (*connect.Response[v1.GraphResponse], error) {
+	return c.groupGraph.CallUnary(ctx, req)
+}
+
 // GoNexusServiceHandler is an implementation of the gonexus.v1.GoNexusService service.
 type GoNexusServiceHandler interface {
 	// Index parses a repo into the graph and persists it.
@@ -479,6 +513,11 @@ type GoNexusServiceHandler interface {
 	// Source returns the source code of a symbol (resolved from its own node,
 	// never a client-supplied path), for the code inspector.
 	Source(context.Context, *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error)
+	// Groups lists the configured repo groups (for cross-repo mode).
+	Groups(context.Context, *connect.Request[v1.GroupsRequest]) (*connect.Response[v1.GroupsResponse], error)
+	// GroupGraph returns the merged graph of a group's repos plus the cross-repo
+	// contract edges linking them.
+	GroupGraph(context.Context, *connect.Request[v1.GroupGraphRequest]) (*connect.Response[v1.GraphResponse], error)
 }
 
 // NewGoNexusServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -626,6 +665,18 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 		connect.WithSchema(goNexusServiceMethods.ByName("Source")),
 		connect.WithHandlerOptions(opts...),
 	)
+	goNexusServiceGroupsHandler := connect.NewUnaryHandler(
+		GoNexusServiceGroupsProcedure,
+		svc.Groups,
+		connect.WithSchema(goNexusServiceMethods.ByName("Groups")),
+		connect.WithHandlerOptions(opts...),
+	)
+	goNexusServiceGroupGraphHandler := connect.NewUnaryHandler(
+		GoNexusServiceGroupGraphProcedure,
+		svc.GroupGraph,
+		connect.WithSchema(goNexusServiceMethods.ByName("GroupGraph")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/gonexus.v1.GoNexusService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GoNexusServiceIndexProcedure:
@@ -674,6 +725,10 @@ func NewGoNexusServiceHandler(svc GoNexusServiceHandler, opts ...connect.Handler
 			goNexusServiceGraphHandler.ServeHTTP(w, r)
 		case GoNexusServiceSourceProcedure:
 			goNexusServiceSourceHandler.ServeHTTP(w, r)
+		case GoNexusServiceGroupsProcedure:
+			goNexusServiceGroupsHandler.ServeHTTP(w, r)
+		case GoNexusServiceGroupGraphProcedure:
+			goNexusServiceGroupGraphHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -773,4 +828,12 @@ func (UnimplementedGoNexusServiceHandler) Graph(context.Context, *connect.Reques
 
 func (UnimplementedGoNexusServiceHandler) Source(context.Context, *connect.Request[v1.SourceRequest]) (*connect.Response[v1.SourceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Source is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) Groups(context.Context, *connect.Request[v1.GroupsRequest]) (*connect.Response[v1.GroupsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.Groups is not implemented"))
+}
+
+func (UnimplementedGoNexusServiceHandler) GroupGraph(context.Context, *connect.Request[v1.GroupGraphRequest]) (*connect.Response[v1.GraphResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("gonexus.v1.GoNexusService.GroupGraph is not implemented"))
 }

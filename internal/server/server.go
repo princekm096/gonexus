@@ -17,6 +17,7 @@ import (
 	"github.com/yourorg/gonexus/internal/changes"
 	"github.com/yourorg/gonexus/internal/embed"
 	"github.com/yourorg/gonexus/internal/graph"
+	"github.com/yourorg/gonexus/internal/groups"
 	"github.com/yourorg/gonexus/internal/index"
 	"github.com/yourorg/gonexus/internal/llm"
 	"github.com/yourorg/gonexus/internal/registry"
@@ -613,6 +614,101 @@ func (s *Server) Source(ctx context.Context, req *connect.Request[v1.SourceReque
 	return connect.NewResponse(&v1.SourceResponse{
 		File: file, StartLine: int32(start), Code: code, Lang: langOf(file),
 	}), nil
+}
+
+// Groups lists the configured repo groups (for cross-repo mode).
+func (s *Server) Groups(ctx context.Context, req *connect.Request[v1.GroupsRequest]) (*connect.Response[v1.GroupsResponse], error) {
+	f, err := registry.LoadGroups()
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*v1.GroupInfo, 0, len(f.Groups))
+	for _, g := range f.Groups {
+		out = append(out, &v1.GroupInfo{Name: g.Name, Repos: g.Repos})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return connect.NewResponse(&v1.GroupsResponse{Groups: out}), nil
+}
+
+// GroupGraph merges the graphs of a group's repos and adds the cross-repo
+// contract edges (shared exported symbol/route names) that link them, so the
+// explorer can show how services connect across repo boundaries.
+func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGraphRequest]) (*connect.Response[v1.GraphResponse], error) {
+	f, err := registry.LoadGroups()
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	grp, ok := f.Groups[req.Msg.Group]
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such group %q", req.Msg.Group))
+	}
+	perRepo := int(req.Msg.Limit)
+	if perRepo <= 0 {
+		perRepo = 800
+	}
+	var nodes []*v1.Node
+	var edges []*v1.Edge
+	present := map[string]bool{} // node ids that made the cut (for cross-edge filtering)
+	for _, repoName := range grp.Repos {
+		g, _, err := s.store.Graph(repoName)
+		if err != nil {
+			continue
+		}
+		deg := map[string]int{}
+		for _, e := range g.Edges {
+			deg[e.From]++
+			deg[e.To]++
+		}
+		ids := make([]string, 0, len(g.Nodes))
+		for id := range g.Nodes {
+			ids = append(ids, id)
+		}
+		if len(ids) > perRepo {
+			sort.Slice(ids, func(i, j int) bool { return deg[ids[i]] > deg[ids[j]] })
+			ids = ids[:perRepo]
+		}
+		keep := map[string]bool{}
+		for _, id := range ids {
+			keep[id] = true
+			present[id] = true
+			nd := toNode(g.Nodes[id])
+			nd.Repo = repoName
+			nodes = append(nodes, nd)
+		}
+		for _, e := range g.Edges {
+			if keep[e.From] && keep[e.To] {
+				edges = append(edges, &v1.Edge{From: e.From, To: e.To, Kind: string(e.Kind)})
+			}
+		}
+	}
+	// Cross-repo edges: contracts sharing a key across two different repos.
+	if sync, err := groups.Sync(s.store, req.Msg.Group); err == nil {
+		byKey := map[string][]groups.Contract{}
+		for _, cs := range sync.Contracts {
+			for _, c := range cs {
+				byKey[c.Key] = append(byKey[c.Key], c)
+			}
+		}
+		seen := map[string]bool{}
+		for _, l := range sync.Links {
+			cs := byKey[l.Key]
+			for i := 0; i < len(cs); i++ {
+				for j := i + 1; j < len(cs); j++ {
+					a, b := cs[i], cs[j]
+					if a.Repo == b.Repo || !present[a.ID] || !present[b.ID] {
+						continue
+					}
+					k := a.ID + "\x00" + b.ID
+					if seen[k] {
+						continue
+					}
+					seen[k] = true
+					edges = append(edges, &v1.Edge{From: a.ID, To: b.ID, Kind: "contract", Cross: true})
+				}
+			}
+		}
+	}
+	return connect.NewResponse(&v1.GraphResponse{Nodes: nodes, Edges: edges}), nil
 }
 
 // within reports whether path is inside root (after cleaning), used to keep

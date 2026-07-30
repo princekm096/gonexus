@@ -20,6 +20,9 @@ const KIND_ORDER = ["package", "file", "type", "class", "interface", "func", "me
 
 const repos = ref([]);
 const repo = ref("");
+const mode = ref("single"); // "single" | "cross"
+const groups = ref([]);
+const group = ref("");
 const connected = ref(true);
 const error = ref("");
 
@@ -35,6 +38,7 @@ const searchBox = ref(null);
 const focusId = ref("");
 const selected = ref(null); // { node, incoming, outgoing }
 const impact = ref([]);
+const impactStatus = ref("");
 const source = ref(null); // { file, startLine, code, lang }
 
 const hiddenKinds = ref({}); // kind -> true = hidden in the graph
@@ -53,12 +57,31 @@ const presentKinds = computed(() => {
   return ordered;
 });
 
+// Cross-repo legend: repo -> color, mirroring GraphView's first-seen palette.
+const REPO_PALETTE = ["#58a6ff", "#7ee787", "#f0883e", "#d2a8ff", "#f778ba", "#ffa657", "#79c0ff", "#56d364"];
+const repoLegend = computed(() => {
+  const map = {};
+  const out = [];
+  for (const n of allNodes.value) {
+    if (n.repo && !(n.repo in map)) {
+      map[n.repo] = REPO_PALETTE[out.length % REPO_PALETTE.length];
+      out.push({ repo: n.repo, color: map[n.repo] });
+    }
+  }
+  return out;
+});
+
 onMounted(async () => {
   window.addEventListener("keydown", onKey);
   try {
     const r = await api.repos();
     repos.value = r.repos || [];
     connected.value = true;
+    try {
+      const gr = await api.groups();
+      groups.value = gr.groups || [];
+      if (groups.value.length) group.value = groups.value[0].name;
+    } catch { /* groups optional */ }
     if (repos.value.length) {
       // Default to the repo with the most symbols (avoids empty testdata repos).
       repo.value = repos.value.reduce((a, b) => ((b.nodes || 0) > (a.nodes || 0) ? b : a)).name;
@@ -68,6 +91,18 @@ onMounted(async () => {
     connected.value = false;
   }
 });
+
+// The repo that owns a node — in cross-repo mode nodes carry their own repo.
+function repoOf(id) {
+  const n = allNodes.value.find((x) => x.id === id);
+  return (n && n.repo) || repo.value;
+}
+function setMode(m) {
+  if (m === mode.value) return;
+  if (m === "cross" && !groups.value.length) return; // no groups configured
+  mode.value = m;
+  loadGraph();
+}
 onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
 function onKey(e) {
@@ -82,8 +117,11 @@ async function loadGraph() {
   focusId.value = "";
   selected.value = null;
   source.value = null;
+  impact.value = [];
+  impactStatus.value = "";
   try {
-    const g = await api.graph(repo.value);
+    const g =
+      mode.value === "cross" ? await api.groupGraph(group.value) : await api.graph(repo.value);
     allNodes.value = g.nodes || [];
     allEdges.value = g.edges || [];
     truncated.value = !!g.truncated;
@@ -110,12 +148,14 @@ async function search() {
 async function select(id) {
   error.value = "";
   impact.value = [];
+  impactStatus.value = "";
   focusId.value = id;
   showResults.value = false;
+  const rp = repoOf(id);
   try {
-    selected.value = await api.context(id, repo.value);
+    selected.value = await api.context(id, rp);
     source.value = null;
-    source.value = await api.source(id, repo.value);
+    source.value = await api.source(id, rp);
   } catch (e) {
     error.value = String(e);
   }
@@ -123,8 +163,12 @@ async function select(id) {
 
 async function showImpact() {
   if (!selected.value?.node) return;
-  const r = await api.impact(selected.value.node.id, repo.value);
+  const id = selected.value.node.id;
+  const r = await api.impact(id, repoOf(id));
   impact.value = r.ids || [];
+  impactStatus.value = impact.value.length
+    ? `${impact.value.length} symbols depend on this — highlighted in the graph.`
+    : "Nothing depends on this — no transitive callers.";
 }
 
 async function runAsk() {
@@ -153,10 +197,27 @@ const codeLines = computed(() => (source.value ? source.value.code.split("\n") :
     <!-- Top bar -->
     <header class="topbar">
       <div class="brand"><span class="logo">◈</span> GoNexus</div>
-      <div class="repo-pill" v-if="repos.length">
+      <div class="mode">
+        <button :class="{ active: mode === 'single' }" @click="setMode('single')">Single repo</button>
+        <button
+          :class="{ active: mode === 'cross' }"
+          :disabled="!groups.length"
+          :title="groups.length ? 'Cross-repo group graph' : 'No groups — create one with: gonexus group add <name> <repo>...'"
+          @click="setMode('cross')"
+        >
+          Cross-repo
+        </button>
+      </div>
+      <div class="repo-pill" v-if="mode === 'single' && repos.length">
         <span class="dot" :class="{ on: connected }"></span>
         <select v-model="repo" @change="loadGraph">
           <option v-for="r in repos" :key="r.name" :value="r.name">{{ r.name }} ({{ r.nodes }})</option>
+        </select>
+      </div>
+      <div class="repo-pill" v-else-if="mode === 'cross'">
+        <span class="dot on"></span>
+        <select v-model="group" @change="loadGraph">
+          <option v-for="g in groups" :key="g.name" :value="g.name">{{ g.name }} ({{ g.repos.length }} repos)</option>
         </select>
       </div>
       <span v-if="!connected" class="badge warn">no backend — run <code>gonexus serve</code></span>
@@ -208,8 +269,14 @@ const codeLines = computed(() => (source.value ? source.value.code.split("\n") :
           </button>
         </div>
 
-        <h3>Legend</h3>
-        <ul class="legend">
+        <h3>{{ mode === "cross" ? "Repos" : "Legend" }}</h3>
+        <ul class="legend" v-if="mode === 'cross'">
+          <li v-for="r in repoLegend" :key="r.repo">
+            <span class="dotk" :style="{ background: r.color }"></span> {{ r.repo }}
+          </li>
+          <li><span class="dotk" style="background: #f778ba"></span> cross-repo link</li>
+        </ul>
+        <ul class="legend" v-else>
           <li v-for="k in presentKinds" :key="k">
             <span class="dotk" :style="{ background: KIND_COLOR[k] || '#8b949e' }"></span> {{ k }}
           </li>
@@ -238,8 +305,9 @@ const codeLines = computed(() => (source.value ? source.value.code.split("\n") :
           <code class="sig" v-if="selected.node.signature">{{ selected.node.signature }}</code>
           <p class="loc">{{ selected.node.file }}:{{ selected.node.line }}</p>
           <button class="impact-btn" @click="showImpact">Blast radius →</button>
+          <p v-if="impactStatus" class="impact-status">{{ impactStatus }}</p>
           <ul v-if="impact.length" class="impact">
-            <li v-for="id in impact" :key="id">{{ shortId(id) }}</li>
+            <li v-for="id in impact" :key="id" @click="select(id)">{{ shortId(id) }}</li>
           </ul>
 
           <div v-if="source" class="code">
@@ -281,6 +349,8 @@ const codeLines = computed(() => (source.value ? source.value.code.split("\n") :
           :hidden-kinds="hiddenKinds"
           :focus-depth="focusDepth"
           :maximized="graphMax"
+          :impact-ids="impact"
+          :color-by-repo="mode === 'cross'"
           @select="select"
           @toggle-max="graphMax = !graphMax"
         />
@@ -300,6 +370,10 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background:
 .topbar { display: flex; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 1px solid #21262d; background: #0d1117; }
 .brand { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; }
 .logo { color: #a371f7; }
+.mode { display: flex; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+.mode button { padding: 6px 11px; font-size: 12px; background: #161b22; color: #9da7b3; border: 0; cursor: pointer; }
+.mode button.active { background: #1f6feb; color: #fff; }
+.mode button:disabled { opacity: 0.4; cursor: not-allowed; }
 .repo-pill { display: flex; align-items: center; gap: 6px; background: #161b22; border: 1px solid #30363d; border-radius: 20px; padding: 3px 10px; }
 .repo-pill select { background: transparent; border: 0; color: #e6edf3; font-size: 13px; outline: none; cursor: pointer; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #6e7681; }
@@ -348,7 +422,10 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background:
 .sig { display: block; background: #161b22; padding: 8px; border-radius: 6px; white-space: pre-wrap; font-size: 12px; margin: 8px 0; }
 .loc { font-size: 12px; color: #7d8590; margin: 4px 0; word-break: break-all; }
 .impact-btn { padding: 6px 12px; background: #238636; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+.impact-status { font-size: 12px; color: #9da7b3; margin: 8px 0 2px; }
 .impact { list-style: none; padding: 8px 0 0; margin: 0; max-height: 140px; overflow: auto; font-size: 12px; color: #9da7b3; }
+.impact li { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.impact li:hover { background: #1f2630; }
 .code { margin: 12px 0; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
 .code-head { background: #161b22; padding: 6px 10px; font-size: 11px; color: #7d8590; border-bottom: 1px solid #30363d; }
 .code-body { overflow: auto; max-height: 42vh; background: #0d1117; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
