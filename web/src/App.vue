@@ -2,6 +2,42 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { api } from "./api.js";
 import GraphView from "./GraphView.vue";
+import hljs from "highlight.js/lib/core";
+import go from "highlight.js/lib/languages/go";
+import typescript from "highlight.js/lib/languages/typescript";
+import javascript from "highlight.js/lib/languages/javascript";
+import python from "highlight.js/lib/languages/python";
+import json from "highlight.js/lib/languages/json";
+import markdown from "highlight.js/lib/languages/markdown";
+import xml from "highlight.js/lib/languages/xml";
+import "highlight.js/styles/github-dark.css";
+hljs.registerLanguage("go", go);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("markdown", markdown);
+hljs.registerLanguage("xml", xml);
+// Source RPC lang hint -> hljs language (vue ~ xml/html for the template).
+const HLJS_LANG = { go: "go", typescript: "typescript", javascript: "javascript", python: "python", json: "json", markdown: "markdown", vue: "xml" };
+
+// splitHighlighted turns hljs's single HTML blob into per-line HTML, carrying
+// open <span>s across line breaks so line numbers work without breaking colors.
+function splitHighlighted(html) {
+  const out = [];
+  const open = []; // stack of full opening span tags currently open
+  for (const raw of html.split("\n")) {
+    let line = open.join("") + raw;
+    const re = /<span[^>]*>|<\/span>/g;
+    let m;
+    while ((m = re.exec(raw))) {
+      if (m[0] === "</span>") open.pop();
+      else open.push(m[0]);
+    }
+    out.push(line + "</span>".repeat(open.length));
+  }
+  return out;
+}
 
 // Node fill by kind — kept in sync with GraphView's palette for legend/toggles.
 const KIND_COLOR = {
@@ -189,7 +225,20 @@ function toggleKind(k) {
   hiddenKinds.value = { ...hiddenKinds.value, [k]: !hiddenKinds.value[k] };
 }
 const shortId = (id) => id.split("/").pop();
-const codeLines = computed(() => (source.value ? source.value.code.split("\n") : []));
+const highlightedLines = computed(() => {
+  if (!source.value) return [];
+  const code = source.value.code;
+  const lang = HLJS_LANG[source.value.lang];
+  let html;
+  try {
+    html = lang
+      ? hljs.highlight(code, { language: lang, ignoreIllegal: true }).value
+      : hljs.highlightAuto(code).value;
+  } catch {
+    html = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  return splitHighlighted(html);
+});
 </script>
 
 <template>
@@ -313,8 +362,8 @@ const codeLines = computed(() => (source.value ? source.value.code.split("\n") :
           <div v-if="source" class="code">
             <div class="code-head">{{ source.lang || "source" }} · from line {{ source.startLine }}</div>
             <div class="code-body">
-              <div v-for="(ln, i) in codeLines" :key="i" class="cl">
-                <span class="ln">{{ source.startLine + i }}</span><span class="lc">{{ ln }}</span>
+              <div v-for="(ln, i) in highlightedLines" :key="i" class="cl">
+                <span class="ln">{{ source.startLine + i }}</span><span class="lc" v-html="ln || ' '"></span>
               </div>
             </div>
           </div>
