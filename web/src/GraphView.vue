@@ -144,8 +144,11 @@ function build() {
   });
 
   const settings = forceAtlas2.inferSettings(g);
+  // Bound layout work by node count so a large (cross-repo) graph doesn't freeze
+  // the page: fewer iterations as the graph grows, capped both ends.
+  const iterations = Math.max(80, Math.min(400, Math.round(250000 / Math.max(g.order, 1))));
   forceAtlas2.assign(g, {
-    iterations: Math.min(600, 120 + g.order),
+    iterations,
     settings: { ...settings, barnesHutOptimize: g.order > 150, adjustSizes: true },
   });
 

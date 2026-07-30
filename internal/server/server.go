@@ -642,46 +642,60 @@ func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGr
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such group %q", req.Msg.Group))
 	}
-	perRepo := int(req.Msg.Limit)
-	if perRepo <= 0 {
-		perRepo = 800
+	// Cap the *merged* graph, not per-repo: a group of several big repos can
+	// otherwise produce thousands of nodes, and the browser's force layout then
+	// freezes the page. Keep the highest-degree nodes across the whole group.
+	limit := int(req.Msg.Limit)
+	if limit <= 0 {
+		limit = 1200
 	}
-	var nodes []*v1.Node
-	var edges []*v1.Edge
-	present := map[string]bool{} // node ids that made the cut (for cross-edge filtering)
+	type cand struct {
+		id, repo string
+		n        *graph.Node
+		deg      int
+	}
+	var all []cand
+	repoGraphs := map[string]*graph.Graph{}
+	truncated := false
 	for _, repoName := range grp.Repos {
 		g, _, err := s.store.Graph(repoName)
 		if err != nil {
 			continue
 		}
+		repoGraphs[repoName] = g
 		deg := map[string]int{}
 		for _, e := range g.Edges {
 			deg[e.From]++
 			deg[e.To]++
 		}
-		ids := make([]string, 0, len(g.Nodes))
-		for id := range g.Nodes {
-			ids = append(ids, id)
+		for id, n := range g.Nodes {
+			all = append(all, cand{id, repoName, n, deg[id]})
 		}
-		if len(ids) > perRepo {
-			sort.Slice(ids, func(i, j int) bool { return deg[ids[i]] > deg[ids[j]] })
-			ids = ids[:perRepo]
-		}
-		keep := map[string]bool{}
-		for _, id := range ids {
-			keep[id] = true
-			present[id] = true
-			nd := toNode(g.Nodes[id])
-			nd.Repo = repoName
-			nodes = append(nodes, nd)
-		}
+	}
+	if len(all) > limit {
+		sort.Slice(all, func(i, j int) bool { return all[i].deg > all[j].deg })
+		all = all[:limit]
+		truncated = true
+	}
+	present := map[string]string{} // id -> owning repo (kept nodes)
+	nodes := make([]*v1.Node, 0, len(all))
+	for _, c := range all {
+		present[c.id] = c.repo
+		nd := toNode(c.n)
+		nd.Repo = c.repo
+		nodes = append(nodes, nd)
+	}
+	var edges []*v1.Edge
+	for repoName, g := range repoGraphs {
 		for _, e := range g.Edges {
-			if keep[e.From] && keep[e.To] {
+			if present[e.From] == repoName && present[e.To] == repoName {
 				edges = append(edges, &v1.Edge{From: e.From, To: e.To, Kind: string(e.Kind)})
 			}
 		}
 	}
 	// Cross-repo edges: contracts sharing a key across two different repos.
+	// Guard against blow-up — skip generic names shared by many symbols, and cap
+	// the total, so a key like "New"/"Error" can't create an O(n²) edge storm.
 	if sync, err := groups.Sync(s.store, req.Msg.Group); err == nil {
 		byKey := map[string][]groups.Contract{}
 		for _, cs := range sync.Contracts {
@@ -689,13 +703,19 @@ func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGr
 				byKey[c.Key] = append(byKey[c.Key], c)
 			}
 		}
+		const maxPerKey, maxCross = 12, 400
 		seen := map[string]bool{}
+		crossCount := 0
+	links:
 		for _, l := range sync.Links {
 			cs := byKey[l.Key]
+			if len(cs) > maxPerKey {
+				continue // too generic — noise, skip
+			}
 			for i := 0; i < len(cs); i++ {
 				for j := i + 1; j < len(cs); j++ {
 					a, b := cs[i], cs[j]
-					if a.Repo == b.Repo || !present[a.ID] || !present[b.ID] {
+					if a.Repo == b.Repo || present[a.ID] == "" || present[b.ID] == "" {
 						continue
 					}
 					k := a.ID + "\x00" + b.ID
@@ -704,11 +724,14 @@ func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGr
 					}
 					seen[k] = true
 					edges = append(edges, &v1.Edge{From: a.ID, To: b.ID, Kind: "contract", Cross: true})
+					if crossCount++; crossCount >= maxCross {
+						break links
+					}
 				}
 			}
 		}
 	}
-	return connect.NewResponse(&v1.GraphResponse{Nodes: nodes, Edges: edges}), nil
+	return connect.NewResponse(&v1.GraphResponse{Nodes: nodes, Edges: edges, Truncated: truncated}), nil
 }
 
 // within reports whether path is inside root (after cleaning), used to keep
