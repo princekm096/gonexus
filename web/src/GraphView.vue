@@ -4,6 +4,7 @@ import Graph from "graphology";
 import Sigma from "sigma";
 import { EdgeArrowProgram } from "sigma/rendering";
 import forceAtlas2 from "graphology-layout-forceatlas2";
+import FA2Layout from "graphology-layout-forceatlas2/worker";
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
@@ -27,6 +28,8 @@ let renderer = null;
 let graph = null;
 let hovered = null; // transient hover spotlight
 let pinned = null; // clicked node — spotlight persists until background click
+let layout = null; // FA2 web-worker layout (large graphs), off the main thread
+let layoutTimer = null;
 let depthSet = null; // Set of ids within focusDepth of focusId, or null = all
 let impactSet = new Set(); // blast-radius ids to spotlight
 
@@ -104,6 +107,7 @@ function repoColor(repo) {
 
 // build lays out the whole graph (graphology + ForceAtlas2) once per data change.
 function build() {
+  stopLayout(); // cancel any in-flight worker layout from a previous graph
   if (renderer) {
     renderer.kill();
     renderer = null;
@@ -143,20 +147,46 @@ function build() {
     g.setNodeAttribute(id, "size", 3 + 9 * Math.sqrt(deg / maxDeg));
   });
 
-  const settings = forceAtlas2.inferSettings(g);
-  // Bound layout work by node count so a large (cross-repo) graph doesn't freeze
-  // the page: fewer iterations as the graph grows, capped both ends.
-  const iterations = Math.max(80, Math.min(400, Math.round(250000 / Math.max(g.order, 1))));
-  forceAtlas2.assign(g, {
-    iterations,
-    settings: { ...settings, barnesHutOptimize: g.order > 150, adjustSizes: true },
-  });
-
   graph = g;
   pinned = null;
   recomputeDepth();
   recomputeImpact();
-  mount();
+
+  const settings = { ...forceAtlas2.inferSettings(g), barnesHutOptimize: g.order > 150, adjustSizes: true };
+  if (g.order <= 800) {
+    // Small graph: synchronous layout is instant — lay out, then render.
+    const iterations = Math.max(80, Math.min(400, Math.round(250000 / Math.max(g.order, 1))));
+    forceAtlas2.assign(g, { iterations, settings });
+    mount();
+  } else {
+    // Large graph (e.g. cross-repo): render immediately with a seed layout, then
+    // run ForceAtlas2 in a Web Worker so the whole graph lays out WITHOUT
+    // freezing the page. Reframe once it settles.
+    mount();
+    runWorkerLayout(settings);
+  }
+}
+
+function runWorkerLayout(settings) {
+  stopLayout();
+  layout = new FA2Layout(graph, { settings });
+  layout.start();
+  const budget = Math.min(5000, 1500 + graph.order); // ms: scales with size, capped
+  layoutTimer = setTimeout(() => {
+    stopLayout();
+    fit(); // cheap camera reframe of the settled layout (no costly remount)
+  }, budget);
+}
+function stopLayout() {
+  if (layoutTimer) {
+    clearTimeout(layoutTimer);
+    layoutTimer = null;
+  }
+  if (layout) {
+    layout.stop();
+    layout.kill();
+    layout = null;
+  }
 }
 
 // mount (re)creates the Sigma renderer. Sigma fits the graph to the container at
@@ -291,6 +321,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
+  stopLayout();
   renderer && renderer.kill();
 });
 // Rebuild on data change; just refresh reducers on filter change; reframe on resize.

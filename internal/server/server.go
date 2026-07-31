@@ -529,7 +529,7 @@ func (s *Server) Graph(ctx context.Context, req *connect.Request[v1.GraphRequest
 	}
 	limit := int(req.Msg.Limit)
 	if limit <= 0 {
-		limit = 1500
+		limit = 3000
 	}
 	deg := make(map[string]int, len(g.Nodes))
 	for _, e := range g.Edges {
@@ -647,7 +647,7 @@ func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGr
 	// freezes the page. Keep the highest-degree nodes across the whole group.
 	limit := int(req.Msg.Limit)
 	if limit <= 0 {
-		limit = 1200
+		limit = 4000
 	}
 	type cand struct {
 		id, repo string
