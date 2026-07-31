@@ -263,21 +263,31 @@ function visible(id, kind) {
   return true;
 }
 
+// spotlight a node + its direct neighbors (used for both hover and pinned).
+function spotlightNode(id, data, spot, isFocus) {
+  if (id === spot || graph.areNeighbors(spot, id)) {
+    return { ...data, zIndex: 1, forceLabel: true, color: id === spot || isFocus ? "#ffffff" : data.baseColor };
+  }
+  return { ...data, color: DIM, label: "", zIndex: 0 };
+}
+function spotlightEdge(s, t, data, spot) {
+  if (s === spot || t === spot) return { ...data, color: "#788aa0", zIndex: 1 };
+  return { ...data, hidden: true };
+}
+
+// Precedence: hover (transient preview) > blast radius > pinned click > focus.
+// Blast beats the pin so clicking "Blast radius" after pinning a node shows the
+// red overlay instead of staying on the pinned spotlight.
 function nodeReducer(id, data) {
   if (!visible(id, data.kind)) return { ...data, hidden: true };
   const isFocus = id === props.focusId;
-  const spot = hovered || pinned; // hover previews; a click pins it
-  if (spot) {
-    if (id === spot || graph.areNeighbors(spot, id)) {
-      return { ...data, zIndex: 1, forceLabel: true, color: id === spot || isFocus ? "#ffffff" : data.color };
-    }
-    return { ...data, color: DIM, label: "", zIndex: 0 };
-  }
+  if (hovered) return spotlightNode(id, data, hovered, isFocus);
   if (impactSet.size) {
     if (isFocus) return { ...data, color: "#ffffff", zIndex: 2, forceLabel: true, size: data.size + 4 };
     if (impactSet.has(id)) return { ...data, color: IMPACT, zIndex: 1, forceLabel: true };
     return { ...data, color: DIM, label: "", zIndex: 0 };
   }
+  if (pinned) return spotlightNode(id, data, pinned, isFocus);
   if (isFocus) return { ...data, color: "#ffffff", zIndex: 1, forceLabel: true, size: data.size + 4 };
   return { ...data, color: data.baseColor };
 }
@@ -286,16 +296,13 @@ function edgeReducer(edge, data) {
   const sd = graph.getNodeAttribute(s, "kind"),
     td = graph.getNodeAttribute(t, "kind");
   if (!visible(s, sd) || !visible(t, td)) return { ...data, hidden: true };
-  const spot = hovered || pinned;
-  if (spot) {
-    if (s === spot || t === spot) return { ...data, color: "#788aa0", zIndex: 1 };
-    return { ...data, hidden: true };
-  }
+  if (hovered) return spotlightEdge(s, t, data, hovered);
   if (impactSet.size) {
     const inSet = (n) => n === props.focusId || impactSet.has(n);
-    if (inSet(s) && inSet(t)) return { ...data, color: IMPACT, zIndex: 1 };
+    if (inSet(s) && inSet(t)) return { ...data, color: IMPACT, size: 4, zIndex: 1 };
     return { ...data, hidden: true };
   }
+  if (pinned) return spotlightEdge(s, t, data, pinned);
   return data;
 }
 
