@@ -24,8 +24,8 @@ export const api = {
   impact: (id, repo) => call("Impact", { id, repo }),
   trace: (from, to, repo) => call("Trace", { from, to, repo }),
   subgraph: (id, repo, depth = 1) => call("Subgraph", { id, repo, depth }),
-  graph: (repo, limit = 3000) => call("Graph", { repo, limit }),
+  graph: (repo, limit = 0) => call("Graph", { repo, limit }), // 0 = no cap, whole graph
   source: (id, repo, before = 3, after = 120) => call("Source", { id, repo, before, after }),
   groups: () => call("Groups", {}),
-  groupGraph: (group, limit = 4000) => call("GroupGraph", { group, limit }),
+  groupGraph: (group, limit = 0) => call("GroupGraph", { group, limit }), // 0 = no cap
 };

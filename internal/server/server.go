@@ -527,21 +527,18 @@ func (s *Server) Graph(ctx context.Context, req *connect.Request[v1.GraphRequest
 	if err != nil {
 		return nil, err
 	}
-	limit := int(req.Msg.Limit)
-	if limit <= 0 {
-		limit = 3000
-	}
-	deg := make(map[string]int, len(g.Nodes))
-	for _, e := range g.Edges {
-		deg[e.From]++
-		deg[e.To]++
-	}
+	limit := int(req.Msg.Limit) // <= 0 means no cap: return the whole graph
 	ids := make([]string, 0, len(g.Nodes))
 	for id := range g.Nodes {
 		ids = append(ids, id)
 	}
 	truncated := false
-	if len(ids) > limit {
+	if limit > 0 && len(ids) > limit {
+		deg := make(map[string]int, len(g.Nodes))
+		for _, e := range g.Edges {
+			deg[e.From]++
+			deg[e.To]++
+		}
 		sort.Slice(ids, func(i, j int) bool { return deg[ids[i]] > deg[ids[j]] })
 		ids = ids[:limit]
 		truncated = true
@@ -642,13 +639,10 @@ func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGr
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such group %q", req.Msg.Group))
 	}
-	// Cap the *merged* graph, not per-repo: a group of several big repos can
-	// otherwise produce thousands of nodes, and the browser's force layout then
-	// freezes the page. Keep the highest-degree nodes across the whole group.
+	// limit <= 0 means no cap: merge every repo's whole graph. A positive limit
+	// keeps the highest-degree nodes across the group (for callers that want to
+	// bound very large groups).
 	limit := int(req.Msg.Limit)
-	if limit <= 0 {
-		limit = 4000
-	}
 	type cand struct {
 		id, repo string
 		n        *graph.Node
@@ -672,7 +666,7 @@ func (s *Server) GroupGraph(ctx context.Context, req *connect.Request[v1.GroupGr
 			all = append(all, cand{id, repoName, n, deg[id]})
 		}
 	}
-	if len(all) > limit {
+	if limit > 0 && len(all) > limit {
 		sort.Slice(all, func(i, j int) bool { return all[i].deg > all[j].deg })
 		all = all[:limit]
 		truncated = true
