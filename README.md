@@ -47,28 +47,35 @@ type resolution, so the call graph is precise across files *and* languages.
 
 ```bash
 git clone <this-repo> gonexus && cd gonexus
-go build -o gonexus ./cmd/gonexus          # backend binary
+go install ./cmd/gonexus                       # backend binary → $GOPATH/bin/gonexus
 cd tools/ts-extractor && npm install && cd -   # TS/Vue indexing (optional)
-cd web && npm install && cd -                  # web UI (optional)
 ```
 
+The **web UI is prebuilt and committed** (`web/dist/`), so `gonexus serve`
+serves it with no frontend build step — a `git pull` always brings the current
+UI. You only need `cd web && npm install && npm run build` if you're changing
+the frontend yourself.
+
 **Prerequisites:** Go 1.25+ (and the Go toolchain present for repos you index),
-Node 18+ (for TS/Vue and the UI), git (for diff-impact). An OpenAI-compatible
-endpoint is optional (semantic search, wiki prose, chat).
+Node 18+ (only for TS/Vue indexing or rebuilding the UI), git (for diff-impact).
+An OpenAI-compatible endpoint is optional (semantic search, wiki prose, chat).
 
 ## Quick start
 
 ```bash
 gonexus index /path/to/your/repo myrepo    # build + register the graph
-gonexus serve                              # API on 127.0.0.1:8080
+gonexus serve                              # API + web UI on http://127.0.0.1:8080
 #   … or expose to Claude Code:
-claude mcp add gonexus -- /abs/path/to/gonexus mcp
-#   … or open the web UI:
-cd web && npm run dev                       # http://localhost:5173
+claude mcp add gonexus -- $(which gonexus) mcp
 ```
 
-Then ask questions — from the CLI (`gonexus impact myrepo <symbol>`), the API
+`gonexus serve` hosts **both** the JSON/gRPC API and the web UI on
+`127.0.0.1:8080` — open that URL in a browser to explore the graph. Then ask
+questions from any surface: the CLI (`gonexus impact myrepo <symbol>`), the API
 (`curl … /Impact`), an agent (the `impact` MCP tool), or the UI.
+
+> `gonexus setup` (run from inside a repo) does index + register and prints the
+> exact `claude mcp add …` line for you.
 
 ## Core concept: the graph
 
@@ -212,9 +219,18 @@ surfaced in the wiki.
 - *What:* track several repos as a group; `group_sync` builds a cross-repo
   contract registry (shared exported symbols / routes) and links the repos;
   `group impact` shows which other repos a change may affect.
-- *How:* `gonexus group create svc` → `group add svc api` → `group sync svc`.
+- *How:* `gonexus group create svc` → `group add svc api` → `group add svc web`
+  → `group sync svc`.
 - *Why:* blast radius that crosses service boundaries — essential for a
   microservice org.
+
+**Cross-repo graph** (web UI · `GroupGraph` API)
+- *What:* the merged graph of every repo in a group, nodes colored by repo, with
+  the cross-repo **contract edges** (shared symbol/route names) drawn between
+  them — e.g. a Go backend and its Vue frontend as one picture.
+- *How:* in the web UI toggle **Cross-repo** and pick a group; or call the
+  `GroupGraph` API.
+- *Why:* see how services actually connect, not just that they do.
 
 ### 8. Agent integration
 
@@ -237,10 +253,29 @@ Code, Cursor, Codex, etc. Plus:
 
 ### 9. Web UI & visualization
 
-- *What:* Vue 3 app with a repo selector, symbol search/detail, an **Ask** chat
-  panel, and a **WebGL graph** (Sigma.js + ForceAtlas2) showing a symbol's
-  neighborhood — click a node to re-focus. Auto-detects a local `gonexus serve`.
-- *How:* `cd web && npm run dev`.
+A single-page **graph-explorer workspace** (Vue 3), served by `gonexus serve` at
+`http://127.0.0.1:8080`. Layout:
+
+- **Top bar** — repo pill with a live status dot, a **Single / Cross-repo**
+  toggle, and a `⌘K` node search.
+- **Left sidebar** — two tabs: **Explorer** (a folder → file → symbol tree; in
+  cross-repo mode the repo is the top level) and **Filters** (per-kind
+  visibility toggles with icons, **focus-depth** hops All/1/2/3/5, color legend).
+- **Code Inspector** (center) — the selected symbol's **syntax-highlighted
+  source** (highlight.js), an "✨ N references" badge, **Blast radius** button,
+  and clickable callers / callees.
+- **Graph** (right) — an always-on **WebGL graph of the whole repo** (Sigma.js +
+  ForceAtlas2), nodes colored by kind with cyan filename pills and directional
+  arrows. **Hover** to isolate a node's connections, **click** to pin that
+  spotlight (click again / empty space to release), **Blast radius** lights the
+  impacted set red, **Maximize** for full-screen. Layout runs in a **Web Worker**
+  so even large (cross-repo) graphs never freeze the page.
+- **💬 Ask AI** — a docked chat panel; answers cite graph symbols as clickable
+  source chips that jump to the inspector.
+
+- *How:* `gonexus serve`, then open `http://127.0.0.1:8080`. (For frontend
+  development with hot reload: `cd web && npm run dev` on `:5173`, pointing at
+  the API via `VITE_GONEXUS_URL`.)
 - *Why:* humans explore the same graph visually that agents query programmatically.
 
 ---
@@ -267,12 +302,19 @@ curl -s localhost:8080/gonexus.v1.GoNexusService/Impact \
   -d '{"repo":"myrepo","id":"github.com/acme/app/config.Load"}'
 ```
 
-**Multi-repo:** repos live in `~/.gonexus/registry.json`; each repo's graph is in
-its own `<repo>/.gonexus/graph.json`. One `serve`/`mcp` process handles them all
-and hot-reloads a repo's graph when it changes on disk. `gonexus status` shows
-which indexes are stale. Re-indexing is **incremental** (per-language
-fingerprint cache): a no-op reindex is ~0.01s vs ~1.8s cold, and editing only Go
-skips the TS toolchain entirely.
+**Multi-repo:** repos are registered in `~/.gonexus/registry.json`, and each
+repo's graph + caches live **centrally** under `~/.gonexus/cache/<key>/`
+(keyed by the repo's absolute path) — indexing never writes into the repo
+itself. One `serve`/`mcp` process handles all registered repos and hot-reloads a
+repo's graph when it changes on disk. `gonexus status` shows which indexes are
+stale. Re-indexing is **incremental** (per-language fingerprint cache): a no-op
+reindex is ~0.01s vs ~1.8s cold, and editing only Go skips the TS toolchain
+entirely.
+
+**New in the API:** `Graph` (whole-repo node/edge set for the explorer),
+`Source` (a symbol's source, resolved from its own node and confined to the repo
+root), `Groups` / `GroupGraph` (the merged cross-repo graph). See the full method
+list in `proto/gonexus/v1/gonexus.proto`.
 
 ## Configuration
 
@@ -293,14 +335,21 @@ loopback bind).
 
 ## Security
 
-The server can read indexed source and (unless read-only) edit files, so it's
-not meant to be openly exposed.
+The server can index arbitrary paths (which executes the Go/Node toolchain),
+serve indexed source (the `Source` endpoint), and — unless read-only — edit
+files, so it's not meant to be openly exposed.
 
-- **Binds `127.0.0.1` by default**; warns if bound to a public interface without
-  a token.
-- **Token auth** — `GONEXUS_AUTH_TOKEN` (constant-time compared) on every request.
-- **Read-only mode** — `GONEXUS_READ_ONLY=1` for untrusted agents.
-- **Origin-checked CORS**, never `*`.
+- **Binds `127.0.0.1` by default.** **Fails closed** on a non-loopback bind
+  without a token: `serve` refuses to start unless `GONEXUS_AUTH_TOKEN` is set.
+- **Token auth** — `GONEXUS_AUTH_TOKEN` (constant-time compared) on every
+  request; `/healthz` stays open for health checks.
+- **Read-only mode** — `GONEXUS_READ_ONLY=1` disables `Index` and downgrades
+  `Rename` to plan-only, for untrusted agents.
+- **`Source` is path-safe** — it reads the file recorded on a symbol's own node
+  and refuses anything outside the repo root, so it can't be used to read
+  arbitrary host files.
+- **Origin-checked CORS**, never `*`; a `ReadHeaderTimeout` guards against
+  Slowloris.
 - Docker image runs as a **non-root** user; `git` refs validated against option
   injection; rename targets validated as identifiers.
 
@@ -323,7 +372,7 @@ gen/                generated Go (buf)
 internal/graph/     graph model + queries (search, impact, trace, process, cluster, shape)
 internal/index/     Go indexer, TS bridge, incremental fingerprinting
 internal/analysis/  Go SSA: PDG + taint
-internal/registry/  ~/.gonexus registry, per-repo store, groups
+internal/registry/  ~/.gonexus registry, central per-repo cache, per-repo store, groups
 internal/changes/   git-diff → symbols + blast radius
 internal/rename/    coordinated multi-file rename
 internal/wiki/      architecture doc generation
@@ -333,7 +382,8 @@ internal/mcp/       MCP stdio server (tools + prompts)
 internal/skills/    agent skill generation
 cmd/gonexus/        CLI
 tools/ts-extractor/ Node sidecar: TS/JS/Vue → {nodes, edges, shapes}
-web/                Vue 3 + Vite UI (Sigma.js WebGL graph)
+web/                Vue 3 + Vite UI (Sigma.js WebGL graph); web/dist/ is the
+                    committed prebuilt bundle that `serve` hosts
 ```
 
 ## Development
