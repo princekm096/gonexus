@@ -34,6 +34,25 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
 - Excluded (impractical here): client-side WASM rebuild, Cosign/SBOM/K8s
       signing, hosted SaaS, OCaml. **No functional gaps remain** in scope.
 
+## Web UI parity (GitNexus-style workspace) ✅
+Single-page graph explorer served by `gonexus serve` at `:8080`; `web/dist` is
+committed so a pull runs it with no frontend build.
+- [x] Top bar: repo pill + live status dot, **Single / Cross-repo** toggle,
+      `⌘K` node search with results dropdown.
+- [x] Left sidebar tabs: **Explorer** (folder→file→symbol tree, repo at top in
+      cross-repo mode) and **Filters** (per-kind visibility toggles w/ icons,
+      focus-depth All/1/2/3/5 hops, color legend). (`web/src/TreeNode.vue`)
+- [x] **Code Inspector**: syntax-highlighted source (highlight.js) via the
+      `Source` RPC, "✨ N references" badge, Blast radius button, clickable
+      callers/callees.
+- [x] Whole-repo WebGL graph: kind colors + cyan filename pills + arrows,
+      hover-isolate, click-to-pin, blast-radius red overlay, Web-Worker layout,
+      maximize, no node cap.
+- [x] **Cross-repo graph**: `GroupGraph` merges a group's repos, colored by
+      repo, with cross-repo contract edges.
+- [x] **Docked Ask AI panel** (`web/src/ChatPanel.vue`): message history +
+      clickable source chips that jump to the inspector.
+
 ## Phase 1 — spine ✅
 - [x] Go indexer via `go/packages` + `go/types` (`internal/index`)
 - [x] In-memory graph + JSON persist (`internal/graph`)
@@ -55,13 +74,15 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
       type → every module-local interface it satisfies (value + pointer
       receiver), cross-package. `addImplementsEdges` in `internal/index/index.go`.
 - [x] Incremental re-index — per-language fingerprint cache
-      (`.gonexus/{go,ts}.json` + `manifest.json`). Unchanged language reloaded
-      from cache, its toolchain skipped. No-op reindex ~0.01s vs ~1.8s full;
-      single-language edit skips the other toolchain. (`internal/index/incremental.go`)
+      (`{go,ts}.json` + `manifest.json`). Unchanged language reloaded from cache,
+      its toolchain skipped. No-op reindex ~0.01s vs ~1.8s full; single-language
+      edit skips the other toolchain. (`internal/index/incremental.go`)
       _Granularity is per-language; per-package Go / per-file TS is a later step._
 - [x] Multi-repo registry (`~/.gonexus/registry.json`), one server/MCP → many
-      repos. Each repo's graph in its own `<repo>/.gonexus/graph.json`; store
-      mtime-reloads so a CLI reindex shows up live. Requests carry `repo`
+      repos. Each repo's graph + caches live **centrally** under
+      `~/.gonexus/cache/<key>/` (keyed by absolute path) — indexing never writes
+      into the repo; a legacy in-repo `.gonexus/` is auto-removed on re-index.
+      Store mtime-reloads so a CLI reindex shows up live. Requests carry `repo`
       (empty = sole repo). CLI `index <path> [name]` / `list`; `Repos` RPC +
       `repos` MCP tool; Vue repo selector. (`internal/registry`)
 
@@ -85,10 +106,10 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
       are opt-in through an OpenAI-compatible endpoint (`internal/embed`,
       `GONEXUS_EMBED_URL`); node vectors stored at index time, query embedded at
       search time. No embedder → clean BM25-only.
-- [x] Community detection / clustering into logical modules — Label Propagation
-      over the call+implements graph; finds cross-package functional clusters.
-      gRPC `Clusters`, MCP `clusters`. (`internal/graph/cluster.go`)
-      _LPA can form one giant community; Louvain would split finer._
+- [x] Community detection / clustering into logical modules — **multi-level
+      Louvain** over the call+implements graph, each cluster with a **cohesion**
+      score; finds cross-package functional clusters. gRPC `Clusters`, MCP
+      `clusters`. (`internal/graph/cluster.go`)
 - [x] Process tracing from entry points — entry points = call roots (main,
       handlers, commands) from graph topology; `Process(id)` returns the
       forward call-tree flow through indexed code; `ProcessesOf(id)` = which
@@ -96,15 +117,23 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
       `process`. (`internal/graph/process.go`)
 
 ## Phase 4 — agent & product surface
-- [x] MCP server over stdio (`gonexus mcp`, `internal/mcp`) — 12 tools: repos,
+- [x] MCP server over stdio (`gonexus mcp`, `internal/mcp`) — 22 tools: repos,
       query, context, impact, trace, entrypoints, process, clusters,
-      detect_changes, rename, wiki, reindex
+      detect_changes, rename, wiki, reindex, tool_map, check, cypher, route_map,
+      api_impact, shape_check, explain, pdg_query, group_list, group_sync.
+- [x] Additional Connect/gRPC methods for the web explorer: `Graph` (whole-repo
+      node/edge set), `Source` (a symbol's source, path-confined to the repo),
+      `Groups` + `GroupGraph` (merged cross-repo graph with contract edges).
 - [x] Stale-index detection — `index.IsStale` (source fingerprint vs manifest);
       surfaced on `Repos`/`repos` (`stale` flag) + CLI `gonexus status`. A
       PreToolUse hook can shell `gonexus status` to warn agents.
-- [x] WebGL graph viz (Sigma.js + graphology + ForceAtlas2) over `Subgraph` —
-      `web/src/GraphView.vue`. Depth-2 neighborhood of the selected symbol,
-      nodes colored by kind, directed edges, click a node to re-focus.
+- [x] WebGL graph viz (Sigma.js + graphology + ForceAtlas2) — now the
+      **whole-repo** graph (`Graph`/`GroupGraph`), not a depth-2 neighborhood.
+      Nodes colored by kind with cyan filename pills + directional arrows;
+      hover-isolate, **click-to-pin** spotlight, **blast-radius** red highlight,
+      node-type + focus-depth filters, maximize. Layout runs in a **Web Worker**
+      so large graphs never freeze the page; no node cap. (`web/src/GraphView.vue`)
+      See "Web UI parity" below.
 - [x] Git-diff impact (`detect_changes`) — `git diff -U0` → changed line ranges
       → enclosing symbols → union blast radius (`Impact`). gRPC `DetectChanges`,
       MCP `detect_changes`. Optional `base` ref; default working tree vs HEAD.
@@ -126,4 +155,5 @@ Live checklist of what's built vs left. Roadmap detail in [README](README.md).
 - In-memory graph + JSON persist, not a graph DB
 - Per-language incremental granularity (not per-package/per-file)
 - Rename is whole-word heuristic (not compiler-exact); confidence flags ambiguity
-- LPA clustering can form one giant community (Louvain would split finer)
+- Cross-repo contract links are name-key based (shared exported symbol/route
+  names), not precise `.proto`/import resolution
