@@ -1,9 +1,12 @@
 // Package registry tracks the set of indexed repositories in
 // ~/.gonexus/registry.json, so one server/MCP process serves many repos.
-// Each repo's graph lives in its own <repo>/.gonexus/graph.json.
+// Each repo's graph + caches live centrally under ~/.gonexus/cache/<key>/ so
+// indexing never writes into the repo itself.
 package registry
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -32,10 +35,24 @@ func Path() (string, error) {
 }
 
 // GraphPath is where a repo's persisted graph lives.
-func GraphPath(r Repo) string { return filepath.Join(r.Path, ".gonexus", "graph.json") }
+func GraphPath(r Repo) string { return filepath.Join(CacheDir(r.Path), "graph.json") }
 
-// CacheDir is where a repo's incremental caches live.
-func CacheDir(repoPath string) string { return filepath.Join(repoPath, ".gonexus") }
+// CacheDir is where a repo's graph + incremental caches live: a central,
+// per-repo directory under ~/.gonexus/cache/ keyed by the repo's absolute path,
+// so indexing never litters the repo with .gonexus files.
+func CacheDir(repoPath string) string {
+	abs, err := filepath.Abs(repoPath)
+	if err != nil {
+		abs = repoPath
+	}
+	sum := sha256.Sum256([]byte(abs))
+	key := filepath.Base(abs) + "-" + hex.EncodeToString(sum[:])[:12]
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.TempDir()
+	}
+	return filepath.Join(home, ".gonexus", "cache", key)
+}
 
 // Load reads the registry, returning an empty one if the file doesn't exist.
 func Load() (*File, error) {

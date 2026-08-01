@@ -17,8 +17,8 @@ import (
 )
 
 // IndexAndRegister builds a repo's graph (incrementally), persists it to the
-// repo's own .gonexus/graph.json, and records it in the global registry.
-// name defaults to the directory base name. Returns the resolved name + counts.
+// central cache (~/.gonexus/cache/<key>/), and records it in the global
+// registry. name defaults to the directory base name. Returns name + counts.
 func IndexAndRegister(path, name string) (string, int, int, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -31,6 +31,7 @@ func IndexAndRegister(path, name string) (string, int, int, error) {
 		return "", 0, 0, fmt.Errorf("invalid repo name %q", name)
 	}
 
+	removeLegacyCache(abs) // clean up in-repo .gonexus/ from older versions
 	cacheDir := registry.CacheDir(abs)
 	g, err := BuildRepo(abs, cacheDir)
 	if err != nil {
@@ -48,6 +49,18 @@ func IndexAndRegister(path, name string) (string, int, int, error) {
 	}
 	buildPDG(abs, cacheDir)
 	return name, len(g.Nodes), len(g.Edges), nil
+}
+
+// removeLegacyCache deletes an old in-repo .gonexus/ cache (from versions that
+// stored the graph inside the repo). Only removes it when it carries our own
+// signature file, so it never touches an unrelated directory.
+func removeLegacyCache(abs string) {
+	legacy := filepath.Join(abs, ".gonexus")
+	if _, err := os.Stat(filepath.Join(legacy, "graph.json")); err == nil {
+		if err := os.RemoveAll(legacy); err == nil {
+			log.Printf("gonexus: removed legacy in-repo cache %s", legacy)
+		}
+	}
 }
 
 // buildPDG runs the heavy SSA analysis (CFG/data-dependence + taint) and
